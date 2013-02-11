@@ -1,9 +1,9 @@
 Package: kr.iolate.simulatetouch
 Name: SimulateTouch
 Depends: mobilesubstrate
-Version: 0.0.1
+Version: 0.1
 Architecture: iphoneos-arm
-Description: Simulate fake touch. Support multi-touch and swipe.
+Description: Simulate fake touch and swipe. Support multi-touch.
 Maintainer: iolate
 Author: iolate
 Section: System
