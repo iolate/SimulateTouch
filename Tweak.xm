@@ -14,22 +14,21 @@
 
 #define PATHINFO_SIZE 11
 #define LOOP_TIMES_IN_SECOND 60
-/*
-typedef struct GSEventRecord2 {
-    GSEventType type; // 0x8
-    GSEventSubType subtype;	// 0xC
-    float a;
-    CGPoint location; 	// 0x10
-    CGPoint windowLocation;	// 0x18
-    int windowContextId;	// 0x20
-    uint64_t timestamp;	// 0x24, from mach_absolute_time
-    GSWindowRef window;	// 0x2C
-    GSEventFlags flags;	// 0x30
-    unsigned senderPID;	// 0x34
-    CFIndex infoSize; // 0x38
-} GSEventRecord2;
-*/
-@interface GSEventTouchProxy : NSObject
+
+typedef struct GSPathInfoiOS6 {
+    uint8_t pathIndex;		// 0x0 = 0x5C
+    uint8_t pathIdentity;		// 0x1 = 0x5D
+    uint8_t pathProximity;	// 0x2 = 0x5E
+    uint8_t pathPressure;				// 0x4 = 0x60
+    uint32_t x04;		// 0x8 = 0x64
+    uint32_t x08;
+    CGPoint pathLocation;
+    uint32_t x14;
+    uint16_t ignored;
+} GSPathInfoiOS6;
+
+
+@interface GSEventTouchProxyiOS5 : NSObject
 {
 @public
 /*
@@ -56,7 +55,7 @@ typedef struct GSEventRecord2 {
 		uint32_t x14; // 0x14
 	} GSPathInfo; // sizeof = 0x18.
 */
-    uint32_t ignored;
+    //uint32_t ignored;
     struct GSEventRecord record;
     //--GSEventRecordInfo
     //----GSEventHandInfo
@@ -71,14 +70,40 @@ typedef struct GSEventRecord2 {
     uint32_t x4c;
     uint8_t x50; //iOS6 touch count?
     uint8_t pathPositions; //touch count ( < iOS5) //0
-    uint16_t x52; //touch count ( >= iOS5) iOS6, type?
+    uint16_t x52; //touch count ( >= iOS5) iOS6
     //struct GSPathInfo pathInfo[];
     //-- sizeof: 0x24
     struct GSPathInfo path[PATHINFO_SIZE]; // sizeof = 0x18
 }
 @end
+@implementation GSEventTouchProxyiOS5
+@end
 
-@implementation GSEventTouchProxy
+@interface GSEventTouchProxyiOS6 : NSObject
+{
+@public
+    //uint32_t ignored;
+    struct GSEventRecord record;
+    //--GSEventRecordInfo
+    //----GSEventHandInfo
+    uint32_t type;
+    uint16_t x34; //1
+    uint16_t x38; ////touching count
+    CGPoint x3a;
+    uint32_t x40;
+    //---- sizeof: 0x14
+    uint32_t x44;
+    uint32_t x48;
+    uint32_t x4c;
+    uint8_t x50; //iOS6 touch count?
+    uint8_t pathPositions; //touch count ( < iOS5) //0
+    uint16_t x52; //touch count ( >= iOS5) iOS6
+    //struct GSPathInfo pathInfo[];
+    //-- sizeof: 0x24
+    struct GSPathInfoiOS6 path[PATHINFO_SIZE]; // sizeof = 0x1C
+}
+@end
+@implementation GSEventTouchProxyiOS6
 @end
 
 static NSMutableDictionary* GSTouchEvents = nil;
@@ -117,30 +142,31 @@ static void _simulateTouchLoop()
         iOS5 = NO;
     }
     
-    
-    GSEventTouchProxy* gevent = [[GSEventTouchProxy alloc] init];
-    
-    if (iOS5) {
-        gevent->record.type = (GSEventType)GSEventTypeMouse;
-    }else{
-        gevent->record.type = (GSEventType)GSEventTypeMouse;
-        //gevent->ignored = 33620352;
-        //locationInWindow top-left:(0,0) left:y+ down:x+, middle point of touches
-        //gevent->record.flags = (GSEventFlags)500864448;
-    }
-    
-    gevent->record.timestamp = GSCurrentEventTimestamp();
-    gevent->record.infoSize = 0x24 + 0x18 * touchCount;
-    //sizeof(struct GSEventRecordInfo) + sizeof(struct GSPathInfo) * touchCount;
-    
     int tDown = 0;
     int tUp = 0;
     int tMove = 0;
     
     int i = 0;
     
-    float sumx = 0.0f;
-    float sumy = 0.0f;
+    GSEventTouchProxyiOS5* gevent5;
+    GSEventTouchProxyiOS6* gevent6;
+    
+    if (iOS5) {
+        gevent5 = [[GSEventTouchProxyiOS5 alloc] init];
+        gevent5->record.type = (GSEventType)GSEventTypeMouse;
+        gevent5->record.timestamp = GSCurrentEventTimestamp();
+        
+        gevent5->record.infoSize = 0x24 + 0x18 * touchCount;
+    }else{
+        gevent6 = [[GSEventTouchProxyiOS6 alloc] init];
+        gevent6->record.type = (GSEventType)GSEventTypeMouse;
+        gevent6->record.timestamp = GSCurrentEventTimestamp();
+        
+        gevent6->record.infoSize = 0x24 + 0x1C * touchCount;
+    }
+    //sizeof(struct GSEventRecordInfo) + sizeof(struct GSPathInfo) * touchCount;
+    
+    
     for (NSString* pIndex in [GSTouchEvents allKeys])
     {
         if (i > PATHINFO_SIZE - 1) break;
@@ -207,51 +233,57 @@ static void _simulateTouchLoop()
             
         }
         
-        gevent->path[i].pathIndex = [pIndex intValue];
-        gevent->path[i].pathIdentity = 0x02;
-        gevent->path[i].pathProximity = touchType != 2 ? 0x03 : 0x00;
-        gevent->path[i].pathLocation = STPointForCurrentScreen(CGPointMake(touchX, touchY));
+        if (iOS5) {
+            gevent5->path[i].pathIndex = [pIndex intValue];
+            gevent5->path[i].pathIdentity = 0x02;
+            gevent5->path[i].pathProximity = touchType != 2 ? 0x03 : 0x00;
+            gevent5->path[i].pathLocation = STPointForCurrentScreen(CGPointMake(touchX, touchY));
+        }else{
+            gevent6->path[i].pathIndex = [pIndex intValue];
+            gevent6->path[i].pathIdentity = 0x02;
+            gevent6->path[i].pathProximity = touchType != 2 ? 0x03 : 0x00;
+            gevent6->path[i].pathLocation = STPointForCurrentScreen(CGPointMake(touchX, touchY));
+        }
         
-        sumx += touchX;
-        sumy += touchY;
         
         i++;
     }
     
+    int touchEvent = 1;
+    
     int tType = (tMove ? 1 : 0) + (tDown ? 2 : 0) + (tUp ? 4 : 0);
-    
-    int touchEventType = 1;
-    
     if (tType == 1) {
-        touchEventType = GSMouseEventTypeDragged;
+        touchEvent = GSMouseEventTypeDragged;
     }else if (tType == 2) {
-        touchEventType = GSMouseEventTypeDown;
+        touchEvent = GSMouseEventTypeDown;
     }else if (tType == 4) {
-        touchEventType = GSMouseEventTypeUp;
+        touchEvent = GSMouseEventTypeUp;
     }else if (tType == 3 || tType == 5 || tType == 7) {
-        touchEventType = GSMouseEventTypeCountChanged;
+        touchEvent = GSMouseEventTypeCountChanged;
     }else if (tType == 6) {
         // ????
-        touchEventType = GSMouseEventTypeDown;
+        touchEvent = GSMouseEventTypeDown;
     }
     
     if (iOS5) {
-        gevent->type = touchEventType;
-        gevent->x34 = 0x1;
-        
-        gevent->x38 = tMove + tDown;
-        gevent->x52 = touchCount;
+        gevent5->type = touchEvent;
+        gevent5->x34 = 0x1;
+        gevent5->x38 = tMove + tDown;
+        gevent5->x52 = touchCount;
     }else{
-        gevent->type = touchEventType;
-        gevent->x34 = 0x1;
-        
-        gevent->x38 = tMove + tDown;
-        //gevent->record.windowLocation = CGPointMake(sumx/(i+1), sumy/(i+1));
-        gevent->x52 = touchCount; //MUST NEED
+        gevent6->type = touchEvent;
+        gevent6->x34 = 0x1;
+        gevent6->x38 = tMove + tDown;
+        gevent6->x52 = touchCount;
     }
     
+    
     mach_port_t appPort = GSCopyPurpleNamedPort([[[NSBundle mainBundle] bundleIdentifier] UTF8String]);
-    GSSendEvent(&gevent->record, appPort);
+    if (iOS5) {
+        GSSendEvent(&gevent5->record, appPort);
+    }else{
+        GSSendEvent(&gevent6->record, appPort);
+    }
     mach_port_deallocate(mach_task_self(), appPort);
     
     //recursive
