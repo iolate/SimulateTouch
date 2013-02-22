@@ -279,6 +279,7 @@ static void _simulateTouchLoop()
     
     
     mach_port_t appPort = GSCopyPurpleNamedPort([[[NSBundle mainBundle] bundleIdentifier] UTF8String]);
+    
     if (iOS5) {
         GSSendEvent(&gevent5->record, appPort);
     }else{
