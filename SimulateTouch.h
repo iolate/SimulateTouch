@@ -1,6 +1,7 @@
 //
 //  SimulateTouch.h
-//  SimulateTouch
+//  SimulateTouch 0.4
+//  http://api.iolate.kr/simulatetouch/
 //
 //  Created by iolate, 2013
 //
@@ -42,7 +43,9 @@ typedef enum {
 
 @end
 
+//Library - libsimulatetouch.dylib
 @interface SimulateTouch
+//Same as in UIApplication (SimulateTouch).
 +(CGPoint)STScreenToWindowPoint:(CGPoint)point withOrientation:(UIInterfaceOrientation)orientation;
 +(CGPoint)STWindowToScreenPoint:(CGPoint)point withOrientation:(UIInterfaceOrientation)orientation;
 +(int)simulateTouch:(int)pathIndex atPoint:(CGPoint)point withType:(STTouchType)type;
