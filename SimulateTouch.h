@@ -28,7 +28,7 @@ typedef enum {
 
 //  Class methods' point is screen point.
 +(int)simulateTouch:(int)pathIndex atPoint:(CGPoint)point withType:(STTouchType)type;
-+(int)simulateSwipeFromPoint:(CGPoint)fromPoint toPoint:(CGPoint)toPoint duration:(float)duration
++(int)simulateSwipeFromPoint:(CGPoint)fromPoint toPoint:(CGPoint)toPoint duration:(float)duration;
 
 
 //  Instance Methods are for compatibility with old versions.
@@ -40,4 +40,11 @@ typedef enum {
 //duration:0.3f
 -(int)simulateSwipe:(int)pathIndex fromPoint:(CGPoint)fromPoint toPoint:(CGPoint)toPoint withType:(STTouchType)type;
 
+@end
+
+@interface SimulateTouch
++(CGPoint)STScreenToWindowPoint:(CGPoint)point withOrientation:(UIInterfaceOrientation)orientation;
++(CGPoint)STWindowToScreenPoint:(CGPoint)point withOrientation:(UIInterfaceOrientation)orientation;
++(int)simulateTouch:(int)pathIndex atPoint:(CGPoint)point withType:(STTouchType)type;
++(int)simulateSwipeFromPoint:(CGPoint)fromPoint toPoint:(CGPoint)toPoint duration:(float)duration;
 @end

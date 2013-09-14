@@ -70,18 +70,14 @@ typedef struct GSPathInfoiOS6 {
     @public
     int type; //터치 종류 0: move/stay 1: down 2: up
     CGPoint point;
-    BOOL system;
 }
 @end
 @implementation STTouch
-
 @end
 
 static NSMutableDictionary* STTouches = nil; //key: client port - Dictionary{index:STTouch
-static BOOL hasFakeTouch = NO;
 
 static void SendTouchesEvent(mach_port_t port);
-static void OriginalTouchEvent(const GSEventRecord* record, mach_port_t port);
 
 #pragma mark -
 
@@ -89,79 +85,26 @@ MSHook(void, GSSendEvent, const GSEventRecord* record, mach_port_t port) {
     GSEventType type = record->type;
     
     if (type == kGSEventHand) {
-        NSLog(@"o %d", port);
-        OriginalTouchEvent(record, port);
-        if (!hasFakeTouch) {
-            _GSSendEvent(record, port);
-        }
-    }else{
-        _GSSendEvent(record, port);
+        [STTouches removeObjectForKey:Int2String(port)];
     }
+    
+    _GSSendEvent(record, port);
 }
 
-
-#pragma mark -
-
-static void UpdateGSTouches(NSString* port, int pathIndex, BOOL touchUp, CGPoint touchPoint) {
-    NSMutableDictionary* touches = [STTouches objectForKey:port] ?: [NSMutableDictionary dictionary];
-    BOOL contains = [[touches allKeys] containsObject:Int2String(pathIndex)];
-    
-    STTouch* touch = [touches objectForKey:Int2String(pathIndex)] ?: [[STTouch alloc] init];
-    touch->type = touchUp ? 2 : contains ? 0 : 1;
-    touch->point = touchPoint;
-    touch->system = YES;
-    
-    [touches setObject:touch forKey:Int2String(pathIndex)];
-    [STTouches setObject:touches forKey:port];
-}
-
-static void PrepareNextEvent(NSString* port, GSEventTouchProxyiOS6* gsevent) {
+static void PrepareNextEvent(NSString* port) {
     NSMutableDictionary* touches = [STTouches objectForKey:port];
 
-    if (!hasFakeTouch && gsevent != nil && (gsevent->type == GSMouseEventTypeUp || gsevent->type == GSMouseEventTypeCancel)) {
-        [touches removeAllObjects];
-    }else{
-        BOOL hasFake = NO;
-        for (NSString* p in [touches allKeys]) {
-            STTouch* touch = [touches objectForKey:p];
-            if (touch->type == 2) {
-                [touches removeObjectForKey:p];
-                [touch release];
-            }
-            
-            hasFake |= !touch->system;
+    for (NSString* p in [touches allKeys]) {
+        STTouch* touch = [touches objectForKey:p];
+        if (touch->type == 2) {
+            [touches removeObjectForKey:p];
+            [touch release];
         }
-        hasFakeTouch = hasFake;
-    }
-    [STTouches setObject:touches forKey:Int2String(port)];
-    
-    if (gsevent != nil) {
-        [gsevent release];
-    }
-}
-
-static void OriginalTouchEvent(const GSEventRecord* record, mach_port_t port) {
-    GSEventRef _gsevent = GSEventCreateWithEventRecord(record);
-    GSEventTouchProxyiOS6* gsevent = (GSEventTouchProxyiOS6 *)_gsevent;
-    
-    int touchCount = gsevent->x52;
-    
-    for (int i = 0; i < touchCount; i++) {
-        int pathIndex = gsevent->path[i].pathIndex;
-        BOOL touchUp = (gsevent->path[i].pathProximity == 0x03) ? FALSE : TRUE; //0x03 || 0x01
-        //NSLog(@"%d %d", touchUp, gsevent->path[i].pathProximity);
-        CGPoint touchPoint = gsevent->path[i].pathLocation;
         
-        UpdateGSTouches(Int2String(port), pathIndex, touchUp, touchPoint);
     }
     
-    if (hasFakeTouch) {
-        SendTouchesEvent(port);
-    }
-    
-    PrepareNextEvent(Int2String(port), gsevent);
+    [STTouches setObject:touches forKey:Int2String(port)];
 }
-
 static int getExtraIndexNumber(NSString* port)
 {
     int r = arc4random()%14;
@@ -182,7 +125,6 @@ static void SimulateTouchEvent(mach_port_t _port, int pathIndex, int type, CGPoi
     if (pathIndex == 0) return;
     
     NSString* port = Int2String(_port);
-    hasFakeTouch = YES;
     
     NSMutableDictionary* touches = [STTouches objectForKey:port] ?: [NSMutableDictionary dictionary];
     
@@ -190,15 +132,12 @@ static void SimulateTouchEvent(mach_port_t _port, int pathIndex, int type, CGPoi
     
     touch->type = type;
     touch->point = touchPoint;
-    touch->system = NO;
     
     [touches setObject:touch forKey:Int2String(pathIndex)];
     [STTouches setObject:touches forKey:port];
     
-    //NSLog(@"%@", touches);
-    
     SendTouchesEvent(_port);
-    PrepareNextEvent(port, nil);
+    PrepareNextEvent(port);
 }
 
 static void SendTouchesEvent(mach_port_t port) {
@@ -256,7 +195,6 @@ static void SendTouchesEvent(mach_port_t port) {
     gevent6->x38 = tMove + tDown;
     gevent6->x52 = touchCount;
 
-    NSLog(@"s %d", port);
     _GSSendEvent(&gevent6->record, port);
     
     //mach_port_deallocate(mach_task_self(), appPort);
@@ -288,6 +226,8 @@ static CFDataRef messageCallBack(CFMessagePortRef local, SInt32 msgid, CFDataRef
                 SimulateTouchEvent(port, pathIndex, touch->type, touch->point);
                 
                 return (CFDataRef)[[NSData alloc] initWithBytes:&pathIndex length:sizeof(pathIndex)];
+            }else{
+                return 0;
             }
         }
     } else {
