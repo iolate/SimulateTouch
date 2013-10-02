@@ -14,6 +14,14 @@
 
 #define Int2String(i) [NSString stringWithFormat:@"%d", i]
 
+#define DEBUG
+#ifdef DEBUG
+#   define RLog(...) NSLog(__VA_ARGS__)
+#else
+#   define RLog(...)
+#endif
+
+
 typedef struct GSPathInfoiOS6 {
     uint8_t pathIndex;		// 0x0 = 0x5C
     uint8_t pathIdentity;		// 0x1 = 0x5D
@@ -103,7 +111,7 @@ static void PrepareNextEvent(NSString* port) {
         
     }
     
-    [STTouches setObject:touches forKey:Int2String(port)];
+    [STTouches setObject:touches forKey:Int2String((int)port)];
 }
 static int getExtraIndexNumber(NSString* port)
 {
@@ -210,6 +218,7 @@ typedef struct {
 
 static CFDataRef messageCallBack(CFMessagePortRef local, SInt32 msgid, CFDataRef cfData, void *info)
 {
+    RLog(@"Receive Message Id: %d", (int)msgid);
     if (msgid == 1) {
         if (CFDataGetLength(cfData) == sizeof(STEvent)) {
             STEvent* touch = (STEvent *)[(NSData *)cfData bytes];
@@ -218,7 +227,7 @@ static CFDataRef messageCallBack(CFMessagePortRef local, SInt32 msgid, CFDataRef
                 unsigned port = [display clientPortAtPosition:touch->point];
                 
                 int pathIndex = touch->index;
-                //NSLog(@"received %d", pathIndex);
+                RLog(@"Received Path Index: %d", pathIndex);
                 if (pathIndex == 0) {
                     pathIndex = getExtraIndexNumber(Int2String(port));
                 }
@@ -231,7 +240,7 @@ static CFDataRef messageCallBack(CFMessagePortRef local, SInt32 msgid, CFDataRef
             }
         }
     } else {
-        NSLog(@"SimulateTouchServer: Unknown message type: %x", msgid);
+        NSLog(@"SimulateTouchServer: Unknown message type: %d", (int)msgid); //%x
     }
     
     // Do not return a reply to the caller

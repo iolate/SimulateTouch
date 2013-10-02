@@ -119,7 +119,7 @@ static void _simulateTouchLoop()
             CGPoint point = CGPointMake(roundf(touch->point.x), roundf(touch->point.y));
             int r = simulate_touch_event(touch->pathIndex, touchType, point);
             if (r == 0) {
-                NSLog(@"ST Error: touchLoop type:0 index:%d, point:(%d,%d) pathIndex:0", touch->pathIndex, touch->point.x, touch->point.y);
+                NSLog(@"ST Error: touchLoop type:0 index:%d, point:(%d,%d) pathIndex:0", touch->pathIndex, (int)touch->point.x, (int)touch->point.y);
                 continue;
             }
             
@@ -135,7 +135,7 @@ static void _simulateTouchLoop()
             CGPoint point = CGPointMake(roundf(touch->point.x), roundf(touch->point.y));
             int r = simulate_touch_event(touch->pathIndex, touchType, point);
             if (r == 0) {
-                NSLog(@"ST Error: touchLoop type:2 index:%d, point:(%d,%d) pathIndex:0", touch->pathIndex, touch->point.x, touch->point.y);
+                NSLog(@"ST Error: touchLoop type:2 index:%d, point:(%d,%d) pathIndex:0", touch->pathIndex, (int)touch->point.x, (int)touch->point.y);
                 continue;
             }
             
@@ -159,7 +159,7 @@ static void _simulateTouchLoop()
 
 #pragma mark -
 
-@interface SimulateTouch
+@interface SimulateTouch : NSObject
 @end
 
 @implementation SimulateTouch
