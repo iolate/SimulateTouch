@@ -72,7 +72,7 @@ int main(int argc, char **argv, char **envp) {
             [SimulateTouch simulateSwipeFromPoint:fromPoint toPoint:toPoint duration:duration];
         }
         
-        CFRunLoopRunInMode(kCFRunLoopDefaultMode , duration+0.5f, NO);
+        CFRunLoopRunInMode(kCFRunLoopDefaultMode , duration+0.1f, NO);
     }else{
         PRINT_USAGE;
         return 0;

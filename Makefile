@@ -6,7 +6,8 @@ include theos/makefiles/common.mk
 
 TWEAK_NAME = STServer STClient
 STServer_FILES = SimulateTouch.mm
-STServer_PRIVATE_FRAMEWORKS = GraphicsServices
+#STServer_FRAMEWORKS =
+STServer_PRIVATE_FRAMEWORKS = GraphicsServices IOKit
 STServer_LDFLAGS = -lsubstrate
 
 STClient_FILES = Tweak.xm

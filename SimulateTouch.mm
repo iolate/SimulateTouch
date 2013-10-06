@@ -1,7 +1,63 @@
 #include <substrate.h>
 #include <mach/mach.h>
+#import <mach/mach_time.h>
 
 #import <GraphicsServices/GSEvent.h>
+
+#import <IOKit/hid/IOHIDEvent.h>
+
+//https://github.com/iolate/Headers/tree/master/IOKit/hid
+#import <IOKit/hid/IOHIDEvent7.h>
+#import <IOKit/hid/IOHIDEventTypes7.h>
+#import <IOKit/hid/IOHIDEventSystemConnection.h>
+
+
+#pragma mark - Common declaration
+
+//#define DEBUG
+#ifdef DEBUG
+#   define DLog(...) NSLog(__VA_ARGS__)
+#else
+#   define DLog(...)
+#endif
+
+@interface STTouch : NSObject
+{
+@public
+    int type; //터치 종류 0: move/stay 1: down 2: up
+    CGPoint point;
+}
+@end
+@implementation STTouch
+@end
+
+static void SendTouchesEvent(mach_port_t port);
+
+static NSMutableDictionary* STTouches = nil; //Dictionary{index:STTouch}
+static unsigned int lastPort = 0;
+
+static BOOL iOS7 = NO;
+
+@interface CAWindowServer //in QuartzCore
++(id)serverIfRunning;
+-(id)displayWithName:(id)name;
+-(NSArray *)displays; //@property(readonly, assign) NSArray* displays;
+@end
+
+@interface CAWindowServerDisplay
+-(id)contextIdsWithClientPort:(unsigned)clientPort;
+-(unsigned)clientPortAtPosition:(CGPoint)position;
+
+//iOS7
+-(unsigned)contextIdAtPosition:(CGPoint)position;
+- (unsigned int)taskPortOfContextId:(unsigned int)arg1; //New!
+@end
+
+
+#pragma mark - iOS6 declaration
+
+//Symbol not found error because this was added on iOS7
+void IOHIDEventSystemConnectionDispatchEvent(IOHIDEventSystemConnectionRef systemConnection, IOHIDEventRef event) __attribute__((weak));
 
 #define GSEventTypeMouse 0x0bb9 //kGSEventHand = 3001
 #define GSMouseEventTypeDown    0x1
@@ -14,14 +70,6 @@
 
 #define Int2String(i) [NSString stringWithFormat:@"%d", i]
 
-#define DEBUG
-#ifdef DEBUG
-#   define RLog(...) NSLog(__VA_ARGS__)
-#else
-#   define RLog(...)
-#endif
-
-
 typedef struct GSPathInfoiOS6 {
     uint8_t pathIndex;		// 0x0 = 0x5C
     uint8_t pathIdentity;		// 0x1 = 0x5D
@@ -33,18 +81,6 @@ typedef struct GSPathInfoiOS6 {
     uint32_t x14;
     uint16_t ignored;
 } GSPathInfoiOS6;
-
-@interface CAWindowServer //in QuartzCore
-+(id)serverIfRunning;
--(id)displayWithName:(id)name;
--(NSArray *)displays; //@property(readonly, assign) NSArray* displays;
-@end
-
-@interface CAWindowServerDisplay
--(id)contextIdsWithClientPort:(unsigned)clientPort;
--(unsigned)contextIdAtPosition:(CGPoint)position;
--(unsigned)clientPortAtPosition:(CGPoint)position;
-@end
 
 @interface GSEventTouchProxyiOS6 : NSObject
 {
@@ -73,142 +109,236 @@ typedef struct GSPathInfoiOS6 {
 @implementation GSEventTouchProxyiOS6
 @end
 
-@interface STTouch : NSObject
-{
-    @public
-    int type; //터치 종류 0: move/stay 1: down 2: up
-    CGPoint point;
+#pragma mark - iOS7 declaration
+
+#define kIOHIDEventDigitizerSenderID 0x000000010000027F
+
+@interface BKAccessibility
+//IOHIDEventSystemConnectionRef
++ (id)_eventRoutingClientConnectionManager;
+@end
+
+@interface BKHIDClientConnectionManager
+- (IOHIDEventSystemConnectionRef)clientForTaskPort:(unsigned int)arg1;
+- (IOHIDEventSystemConnectionRef)clientForBundleID:(id)arg1;
+@end
+
+#pragma mark - Implementation
+
+#ifdef DEBUG
+static NSString* prevString = nil;
+static int count = 0;
+static void LogTouchEvent(IOHIDEventRef event) {
+    
+    if (IOHIDEventGetType(event) != 11) return;
+    
+    NSString* logString = nil;
+    
+    logString = [NSString stringWithFormat:@"\nST\t%d %d (%d %d)",
+                 IOHIDEventGetIntegerValue(event, kIOHIDEventFieldDigitizerEventMask), IOHIDEventGetIntegerValue(event, kIOHIDEventFieldDigitizerIndex), IOHIDEventGetIntegerValue(event, kIOHIDEventFieldDigitizerRange), IOHIDEventGetIntegerValue(event, kIOHIDEventFieldDigitizerTouch)];
+    
+	CFArrayRef children = IOHIDEventGetChildren(event);
+    
+    for (int i = 0; i < CFArrayGetCount(children); i++) {
+		IOHIDEventRef e = (IOHIDEventRef)CFArrayGetValueAtIndex(children, i);
+		logString = [logString stringByAppendingFormat:@"\nST\t\t%d %d (%d %d)", IOHIDEventGetIntegerValue(e, kIOHIDEventFieldDigitizerEventMask), IOHIDEventGetIntegerValue(e, kIOHIDEventFieldDigitizerIdentity), IOHIDEventGetIntegerValue(e, kIOHIDEventFieldDigitizerRange), IOHIDEventGetIntegerValue(e, kIOHIDEventFieldDigitizerTouch)];
+	}
+	
+	if (prevString != nil && [prevString isEqualToString:logString]){
+		count++;
+	}else{
+		if (count != 0) {
+			NSLog(@"ST Last repeated %d times", count);
+			count  = 0;
+		}
+		NSLog(@"%@", logString);
+	}
+    
+	prevString = [logString retain];
+    
 }
-@end
-@implementation STTouch
-@end
+#endif
 
-static NSMutableDictionary* STTouches = nil; //key: client port - Dictionary{index:STTouch
+MSHook(void, IOHIDEventSystemConnectionDispatchEvent, IOHIDEventSystemConnectionRef systemConnection, IOHIDEventRef event) {
 
-static void SendTouchesEvent(mach_port_t port);
-
-#pragma mark -
+    if (IOHIDEventSystemConnectionGetType(systemConnection) == 3 && IOHIDEventGetType(event) == 11) {
+        [STTouches removeAllObjects];
+        lastPort = 0;
+        
+#ifdef DEBUG
+        static IOHIDEventSystemConnectionRef sc;
+        
+        if (sc == nil) sc = systemConnection;
+        if (sc == systemConnection) LogTouchEvent(event);
+#endif
+        
+    }
+    
+    _IOHIDEventSystemConnectionDispatchEvent(systemConnection, event);
+}
 
 MSHook(void, GSSendEvent, const GSEventRecord* record, mach_port_t port) {
+    //Only for iOS6
     GSEventType type = record->type;
     
     if (type == kGSEventHand) {
-        [STTouches removeObjectForKey:Int2String(port)];
+        [STTouches removeAllObjects];
+        lastPort = 0;
     }
     
     _GSSendEvent(record, port);
 }
 
-static void PrepareNextEvent(NSString* port) {
-    NSMutableDictionary* touches = [STTouches objectForKey:port];
 
-    for (NSString* p in [touches allKeys]) {
-        STTouch* touch = [touches objectForKey:p];
-        if (touch->type == 2) {
-            [touches removeObjectForKey:p];
-            [touch release];
-        }
-        
-    }
-    
-    [STTouches setObject:touches forKey:Int2String((int)port)];
-}
-static int getExtraIndexNumber(NSString* port)
+static int getExtraIndexNumber()
 {
     int r = arc4random()%14;
-    r += 2; //except 0 and 1 (MouseSupport)
+    r += 1; //except 0
     
     NSString* pin = Int2String(r);
     
-    NSDictionary* sTouches = [STTouches objectForKey:port];
-    
-    if ([[sTouches allKeys] containsObject:pin]) {
-        return getExtraIndexNumber(port);
+    if ([[STTouches allKeys] containsObject:pin]) {
+        return getExtraIndexNumber();
     }else{
         return r;
     }
 }
 
-static void SimulateTouchEvent(mach_port_t _port, int pathIndex, int type, CGPoint touchPoint) {
+static void SimulateTouchEvent(mach_port_t port, int pathIndex, int type, CGPoint touchPoint) {
     if (pathIndex == 0) return;
     
-    NSString* port = Int2String(_port);
-    
-    NSMutableDictionary* touches = [STTouches objectForKey:port] ?: [NSMutableDictionary dictionary];
-    
-    STTouch* touch = [touches objectForKey:Int2String(pathIndex)] ?: [[STTouch alloc] init];
+    STTouch* touch = [STTouches objectForKey:Int2String(pathIndex)] ?: [[STTouch alloc] init];
     
     touch->type = type;
     touch->point = touchPoint;
     
-    [touches setObject:touch forKey:Int2String(pathIndex)];
-    [STTouches setObject:touches forKey:port];
+    [STTouches setObject:touch forKey:Int2String(pathIndex)];
     
-    SendTouchesEvent(_port);
-    PrepareNextEvent(port);
+    SendTouchesEvent(port);
 }
 
 static void SendTouchesEvent(mach_port_t port) {
-    NSDictionary* sTouches = [STTouches objectForKey:Int2String(port)];
     
-    int touchCount = [[sTouches allKeys] count];
+    int touchCount = [[STTouches allKeys] count];
     
     if (touchCount == 0) {
         return;
     }
     
-    GSEventTouchProxyiOS6* gevent6;
-    
-    gevent6 = [[GSEventTouchProxyiOS6 alloc] init];
-    gevent6->record.type = (GSEventType)GSEventTypeMouse;
-    gevent6->record.timestamp = GSCurrentEventTimestamp();
-    
-    int tDown = 0, tUp = 0, tMove = 0;
-    int i = 0;
-    
-    for (NSString* pIndex in [sTouches allKeys])
-    {
-        if (i > PATHINFO_SIZE - 1) break;
+    if (iOS7) {
+        uint64_t abTime = mach_absolute_time();
+        AbsoluteTime timeStamp = *(AbsoluteTime *) &abTime;
         
-        STTouch* touch = [sTouches objectForKey:pIndex];
-        int touchType = touch->type;
+        IOHIDEventRef handEvent = IOHIDEventCreateDigitizerEvent(kCFAllocatorDefault, timeStamp, kIOHIDTransducerTypeHand, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        IOHIDEventSetIntegerValueWithOptions(handEvent, kIOHIDEventFieldDigitizerDisplayIntegrated, 1, -268435456);
+        IOHIDEventSetIntegerValueWithOptions(handEvent, kIOHIDEventFieldBuiltIn, 1, -268435456);
+        IOHIDEventSetSenderID(handEvent, kIOHIDEventDigitizerSenderID);
         
-        if (touchType == 0) tMove++;
-        else if (touchType == 1) tDown++;
-        else tUp++;
+        int handEventMask = 0;
+        int handEventTouch = 0;
+        int touchingCount = 0; //except Up touch
         
-        gevent6->path[i].pathIndex = [pIndex intValue];
-        gevent6->path[i].pathIdentity = 0x02;
-        gevent6->path[i].pathProximity = touchType != 2 ? 0x03 : 0x00;
-        gevent6->path[i].pathLocation = touch->point;
-        
-        i++;
-    }
-    
-    int touchEvent = 1;
-    
-    int tType = (tMove ? 1 : 0) + (tDown ? 2 : 0) + (tUp ? 4 : 0);
-    if (tType == 1) {
-        touchEvent = GSMouseEventTypeDragged;
-    }else if (tType == 2) {
-        touchEvent = GSMouseEventTypeDown;
-    }else if (tType == 4) {
-        touchEvent = GSMouseEventTypeUp;
-    }else {
-        touchEvent = GSMouseEventTypeCountChanged;
-    }
-    
-    gevent6->type = touchEvent;
-    gevent6->x34 = 0x1;
-    gevent6->x38 = tMove + tDown;
-    gevent6->x52 = touchCount;
+        int i = 0;
+        for (NSString* pIndex in [STTouches allKeys])
+        {
+            STTouch* touch = [STTouches objectForKey:pIndex];
+            int touchType = touch->type;
+            
+            int eventM = (touchType == 0) ? 4 : 3;
+            int touch_ = (touchType == 2) ? 0 : 1;
+            
+            float x = touch->point.x;
+            float y = touch->point.y;
 
-    _GSSendEvent(&gevent6->record, port);
-    
-    //mach_port_deallocate(mach_task_self(), appPort);
+            IOHIDEventRef fingerEvent = IOHIDEventCreateDigitizerFingerEventWithQuality(kCFAllocatorDefault, timeStamp,
+                                                        [pIndex intValue], i + 2, eventM, x, y, 0, 0, 0, 0, 0, 0, 0, 0, touch_, touch_, 0);
+            IOHIDEventAppendEvent(handEvent, fingerEvent);
+            i++;
+            
+            handEventTouch |= touch_;
+            if (touchType == 0) {
+                handEventMask |= kIOHIDDigitizerEventPosition;
+            }else{
+                handEventMask |= (kIOHIDDigitizerEventRange | kIOHIDDigitizerEventTouch | kIOHIDDigitizerEventIdentity);
+            }
+            
+            if (touchType == 2) {
+                handEventMask |= kIOHIDDigitizerEventPosition;
+                [STTouches removeObjectForKey:pIndex];
+                [touch release];
+            }else{
+                touchingCount++;
+            }
+        }
+        
+        IOHIDEventSetIntegerValueWithOptions(handEvent, kIOHIDEventFieldDigitizerEventMask, handEventMask, -268435456);
+        IOHIDEventSetIntegerValueWithOptions(handEvent, kIOHIDEventFieldDigitizerRange, handEventTouch, -268435456);
+        IOHIDEventSetIntegerValueWithOptions(handEvent, kIOHIDEventFieldDigitizerTouch, handEventTouch, -268435456);
+        //IOHIDEventSetIntegerValueWithOptions(handEvent, kIOHIDEventFieldDigitizerIndex, (1<<22) + (int)pow(2.0, (double)(touchingCount+1)) - 2, -268435456);
+        
+#ifdef DEBUG
+        LogTouchEvent(handEvent);
+#endif
+        id manager = [objc_getClass("BKAccessibility") _eventRoutingClientConnectionManager];
+        IOHIDEventSystemConnectionRef systemConnection = [manager clientForTaskPort:port];
+        _IOHIDEventSystemConnectionDispatchEvent(systemConnection, handEvent);
+        
+    }else{
+        GSEventTouchProxyiOS6* gevent6;
+        
+        gevent6 = [[GSEventTouchProxyiOS6 alloc] init];
+        gevent6->record.type = (GSEventType)GSEventTypeMouse;
+        gevent6->record.timestamp = GSCurrentEventTimestamp();
+        
+        int tDown = 0, tUp = 0, tMove = 0;
+        int i = 0;
+        
+        for (NSString* pIndex in [STTouches allKeys])
+        {
+            if (i > PATHINFO_SIZE - 1) break;
+            
+            STTouch* touch = [STTouches objectForKey:pIndex];
+            int touchType = touch->type;
+            
+            gevent6->path[i].pathIndex = [pIndex intValue];
+            gevent6->path[i].pathIdentity = 0x02;
+            gevent6->path[i].pathProximity = touchType != 2 ? 0x03 : 0x00;
+            gevent6->path[i].pathLocation = touch->point;
+            
+            i++;
+            
+            if (touchType == 0) tMove++;
+            else if (touchType == 1) tDown++;
+            else {
+                tUp++;
+                [STTouches removeObjectForKey:pIndex];
+                [touch release];
+            }
+        }
+        
+        int touchEvent = 1;
+        
+        int tType = (tMove ? 1 : 0) + (tDown ? 2 : 0) + (tUp ? 4 : 0);
+        if (tType == 1) {
+            touchEvent = GSMouseEventTypeDragged;
+        }else if (tType == 2) {
+            touchEvent = GSMouseEventTypeDown;
+        }else if (tType == 4) {
+            touchEvent = GSMouseEventTypeUp;
+        }else {
+            touchEvent = GSMouseEventTypeCountChanged;
+        }
+        
+        gevent6->type = touchEvent;
+        gevent6->x34 = 0x1;
+        gevent6->x38 = tMove + tDown;
+        gevent6->x52 = touchCount;
+        
+        _GSSendEvent(&gevent6->record, port);
+    }
 }
 
-#pragma mark -
+#pragma mark - Communicate with Library
 
 typedef struct {
     int type;
@@ -218,23 +348,55 @@ typedef struct {
 
 static CFDataRef messageCallBack(CFMessagePortRef local, SInt32 msgid, CFDataRef cfData, void *info)
 {
-    RLog(@"Receive Message Id: %d", (int)msgid);
+    DLog(@"Receive Message Id: %d", (int)msgid);
     if (msgid == 1) {
         if (CFDataGetLength(cfData) == sizeof(STEvent)) {
             STEvent* touch = (STEvent *)[(NSData *)cfData bytes];
             if (touch != NULL) {
-                id display = [[objc_getClass("CAWindowServer") serverIfRunning] displayWithName:@"LCD"];
-                unsigned port = [display clientPortAtPosition:touch->point];
                 
-                int pathIndex = touch->index;
-                RLog(@"Received Path Index: %d", pathIndex);
-                if (pathIndex == 0) {
-                    pathIndex = getExtraIndexNumber(Int2String(port));
+                if (iOS7) {
+                    
+                    id display = [[objc_getClass("CAWindowServer") serverIfRunning] displayWithName:@"LCD"];
+                    unsigned int contextId = [display contextIdAtPosition:touch->point];
+                    unsigned int port = [display taskPortOfContextId:contextId];
+                    
+                    if (lastPort && lastPort != port) {
+                        [STTouches removeAllObjects];
+                    }
+                    lastPort = port;
+                    
+                    int pathIndex = touch->index;
+                    DLog(@"Received Path Index: %d", pathIndex);
+                    if (pathIndex == 0) {
+                        pathIndex = getExtraIndexNumber();
+                    }
+                    
+                    SimulateTouchEvent(port, pathIndex, touch->type, touch->point);
+                    
+                    return (CFDataRef)[[NSData alloc] initWithBytes:&pathIndex length:sizeof(pathIndex)];
+                    
+                }else{
+                    
+                    id display = [[objc_getClass("CAWindowServer") serverIfRunning] displayWithName:@"LCD"];
+                    unsigned port = [display clientPortAtPosition:touch->point];
+                    
+                    if (lastPort && lastPort != port) {
+                        [STTouches removeAllObjects];
+                    }
+                    lastPort = port;
+                    
+                    int pathIndex = touch->index;
+                    DLog(@"Received Path Index: %d", pathIndex);
+                    if (pathIndex == 0) {
+                        pathIndex = getExtraIndexNumber();
+                    }
+                    
+                    SimulateTouchEvent(port, pathIndex, touch->type, touch->point);
+                    
+                    return (CFDataRef)[[NSData alloc] initWithBytes:&pathIndex length:sizeof(pathIndex)];
+                    
                 }
                 
-                SimulateTouchEvent(port, pathIndex, touch->type, touch->point);
-                
-                return (CFDataRef)[[NSData alloc] initWithBytes:&pathIndex length:sizeof(pathIndex)];
             }else{
                 return 0;
             }
@@ -247,12 +409,23 @@ static CFDataRef messageCallBack(CFMessagePortRef local, SInt32 msgid, CFDataRef
     return NULL;
 }
 
+#pragma mark - MSInitialize
+
 #define MACH_PORT_NAME "kr.iolate.simulatetouch"
 
-
 MSInitialize {
-    MSHookFunction(&GSSendEvent, MSHake(GSSendEvent));
+    //MSHookFunction(&, MSHake());
+    
     STTouches = [[NSMutableDictionary alloc] init];
+    
+    if (objc_getClass("BKHIDSystemInterface")) {
+        iOS7 = YES;
+        MSHookFunction(&IOHIDEventSystemConnectionDispatchEvent, MSHake(IOHIDEventSystemConnectionDispatchEvent));
+    }else{
+        //iOS6
+        iOS7 = NO;
+        MSHookFunction(&GSSendEvent, MSHake(GSSendEvent));
+    }
     
     CFMessagePortRef local = CFMessagePortCreateLocal(NULL, CFSTR(MACH_PORT_NAME), messageCallBack, NULL, NULL);
     CFRunLoopSourceRef source = CFMessagePortCreateRunLoopSource(NULL, local, 0);

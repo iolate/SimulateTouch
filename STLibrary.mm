@@ -1,3 +1,5 @@
+#import <mach/mach_time.h>
+
 #import <CoreGraphics/CoreGraphics.h>
 
 #define LOOP_TIMES_IN_SECOND 60
@@ -32,11 +34,10 @@ typedef enum {
 @public
     int type; //터치 종류 0: move/stay| 1: down| 2: up
     int pathIndex;
-    CGPoint point;
-    float dx;
-    float dy;
-    int times; //현재 횟수
-    int stime; //횟수
+    CGPoint startPoint;
+    CGPoint endPoint;
+    uint64_t startTime;
+    float requestedTime;
 }
 @end
 @implementation STTouchA
@@ -85,6 +86,14 @@ static int simulate_touch_event(int index, int type, CGPoint point) {
     return pathIndex;
 }
 
+double MachTimeToSecs(uint64_t time)
+{
+    mach_timebase_info_data_t timebase;
+    mach_timebase_info(&timebase);
+    return (double)time * (double)timebase.numer / (double)timebase.denom / 1e9;
+}
+
+
 static void _simulateTouchLoop()
 {
     if (FTLoopIsRunning == FALSE) {
@@ -98,6 +107,7 @@ static void _simulateTouchLoop()
     }
     
     NSMutableArray* willRemoveObjects = [NSMutableArray array];
+    uint64_t curTime = mach_absolute_time();
     
     for (int i = 0; i < touchCount; i++)
     {
@@ -108,38 +118,37 @@ static void _simulateTouchLoop()
         
         if (touchType == 1) {
             //Already simulate_touch_event is called
+            touch->type = STTouchMove;
+        }else {
+            double dif = MachTimeToSecs(curTime - touch->startTime);
             
-            touch->type = 0;
-            
-            touch->point.x = touch->point.x+touch->dx;
-            touch->point.y = touch->point.y+touch->dy;
-            touch->times = 1;
-            
-        }else if (touchType == 0) {
-            CGPoint point = CGPointMake(roundf(touch->point.x), roundf(touch->point.y));
-            int r = simulate_touch_event(touch->pathIndex, touchType, point);
-            if (r == 0) {
-                NSLog(@"ST Error: touchLoop type:0 index:%d, point:(%d,%d) pathIndex:0", touch->pathIndex, (int)touch->point.x, (int)touch->point.y);
-                continue;
+            float req = touch->requestedTime;
+            if (dif >= 0 && dif < req) {
+                //Move
+                
+                float dx = touch->endPoint.x - touch->startPoint.x;
+                float dy = touch->endPoint.y - touch->startPoint.y;
+                
+                double per = dif / (double)req;
+                CGPoint point = CGPointMake(touch->startPoint.x + (float)(dx * per), touch->startPoint.y + (float)(dy * per));
+                
+                int r = simulate_touch_event(touch->pathIndex, STTouchMove, point);
+                if (r == 0) {
+                    NSLog(@"ST Error: touchLoop type:0 index:%d, point:(%d,%d) pathIndex:0", touch->pathIndex, (int)point.x, (int)point.y);
+                    continue;
+                }
+                
+            }else {
+                //Up
+                
+                int r = simulate_touch_event(touch->pathIndex, STTouchUp, touch->endPoint);
+                if (r == 0) {
+                    NSLog(@"ST Error: touchLoop type:2 index:%d, point:(%d,%d) pathIndex:0", touch->pathIndex, (int)touch->endPoint.x, (int)touch->endPoint.y);
+                    continue;
+                }
+                
+                [willRemoveObjects addObject:touch];
             }
-            
-            touch->point.x = touch->point.x+touch->dx;
-            touch->point.y = touch->point.y+touch->dy;
-            
-            touch->times++;
-
-            if (touch->times == touch->stime-1) {
-                touch->type = 2;
-            }
-        }else { // == 2
-            CGPoint point = CGPointMake(roundf(touch->point.x), roundf(touch->point.y));
-            int r = simulate_touch_event(touch->pathIndex, touchType, point);
-            if (r == 0) {
-                NSLog(@"ST Error: touchLoop type:2 index:%d, point:(%d,%d) pathIndex:0", touch->pathIndex, (int)touch->point.x, (int)touch->point.y);
-                continue;
-            }
-            
-            [willRemoveObjects addObject:touch];
         }
     }
     
@@ -212,20 +221,15 @@ static void _simulateTouchLoop()
     
     STTouchA* touch = [[STTouchA alloc] init];
     
-    int stime = roundf(duration/0.022); //코드 자체에 시간이 걸리는지 이렇게 해야 얼추 맞음
-    float dx = (toPoint.x - fromPoint.x)/stime;
-    float dy = (toPoint.y - fromPoint.y)/stime;
-    
-    touch->type = 1;
-    touch->point = fromPoint;
-    touch->dx = dx;
-    touch->dy = dy;
-    touch->times = 0;
-    touch->stime = stime;
+    touch->type = STTouchMove;
+    touch->startPoint = fromPoint;
+    touch->endPoint = toPoint;
+    touch->requestedTime = duration;
+    touch->startTime = mach_absolute_time();
     
     [ATouchEvents addObject:touch];
     
-    int r = simulate_touch_event(0, 1, fromPoint);
+    int r = simulate_touch_event(0, STTouchDown, fromPoint);
     if (r == 0) {
         NSLog(@"ST Error: simulateSwipeFromPoint:toPoint:duration: pathIndex:0");
         return 0;

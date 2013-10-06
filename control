@@ -4,6 +4,6 @@ Depends: mobilesubstrate
 Version: 0.4
 Architecture: iphoneos-arm
 Description: Simulate fake touch and swipe. Support multi-touch.
-Maintainer: iolate
-Author: iolate
+Maintainer: iolate <iolate@me.com>
+Author: iolate <iolate@me.com>
 Section: System
