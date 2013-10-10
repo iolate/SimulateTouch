@@ -1,0 +1,3 @@
+[submodule "private-headers"]
+	path = private-headers
+	url = https://github.com/iolate/iOS-Private-Headers.git

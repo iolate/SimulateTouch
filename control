@@ -1,7 +1,9 @@
-Package: kr.iolate.simulatetouch
-Name: SimulateTouch
-Depends: mobilesubstrate
-Version: 0.4
+Package: libsimulatetouch
+Name: libSimulateTouch
+Depends: mobilesubstrate, firmware (>= 6.0)
+Conflicts: kr.iolate.simulatetouch
+Replaces: kr.iolate.simulatetouch
+Version: 0.5-1
 Architecture: iphoneos-arm
 Description: Simulate fake touch and swipe. Support multi-touch.
 Maintainer: iolate <iolate@me.com>

@@ -1,3 +1,9 @@
+/*
+ * Name: libSimulateTouch
+ * Author: iolate <iolate@me.com>
+ *
+ */
+
 #include <substrate.h>
 #include <mach/mach.h>
 #import <mach/mach_time.h>
@@ -6,10 +12,10 @@
 
 #import <IOKit/hid/IOHIDEvent.h>
 
-//https://github.com/iolate/Headers/tree/master/IOKit/hid
-#import <IOKit/hid/IOHIDEvent7.h>
-#import <IOKit/hid/IOHIDEventTypes7.h>
-#import <IOKit/hid/IOHIDEventSystemConnection.h>
+//https://github.com/iolate/iOS-Private-Headers/tree/master/IOKit/hid
+#import "private-headers/IOKit/hid/IOHIDEvent7.h"
+#import "private-headers/IOKit/hid/IOHIDEventTypes7.h"
+#import "private-headers/IOKit/hid/IOHIDEventSystemConnection.h"
 
 
 #pragma mark - Common declaration

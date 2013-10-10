@@ -1,3 +1,9 @@
+/*
+ * Name: libSimulateTouch
+ * Author: iolate <iolate@me.com>
+ *
+ */
+
 #import <CoreGraphics/CoreGraphics.h>
 
 typedef enum {

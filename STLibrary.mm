@@ -1,3 +1,9 @@
+/*
+ * Name: libSimulateTouch
+ * Author: iolate <iolate@me.com>
+ *
+ */
+
 #import <mach/mach_time.h>
 
 #import <CoreGraphics/CoreGraphics.h>

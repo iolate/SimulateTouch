@@ -4,15 +4,10 @@ FW_DEVICE_IP=10.0.1.4
 
 include theos/makefiles/common.mk
 
-TWEAK_NAME = STServer STClient
-STServer_FILES = SimulateTouch.mm
-#STServer_FRAMEWORKS =
-STServer_PRIVATE_FRAMEWORKS = GraphicsServices IOKit
-STServer_LDFLAGS = -lsubstrate
-
-STClient_FILES = Tweak.xm
-STClient_FRAMEWORKS = CoreGraphics
-STClient_LDFLAGS = -lsimulatetouch
+TWEAK_NAME = SimulateTouch
+SimulateTouch_FILES = SimulateTouch.mm
+SimulateTouch_PRIVATE_FRAMEWORKS = GraphicsServices IOKit
+SimulateTouch_LDFLAGS = -lsubstrate
 
 LIBRARY_NAME = libsimulatetouch
 libsimulatetouch_FILES = STLibrary.mm
