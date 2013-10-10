@@ -160,7 +160,7 @@ static void LogTouchEvent(IOHIDEventRef event) {
 #endif
 
 MSHook(void, IOHIDEventSystemConnectionDispatchEvent, IOHIDEventSystemConnectionRef systemConnection, IOHIDEventRef event) {
-
+    //Only for iOS7
     if (IOHIDEventSystemConnectionGetType(systemConnection) == 3 && IOHIDEventGetType(event) == 11) {
         [STTouches removeAllObjects];
         lastPort = 0;
