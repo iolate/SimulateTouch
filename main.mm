@@ -5,20 +5,7 @@
  */
 
 #import <CoreGraphics/CoreGraphics.h>
-
-typedef enum {
-    UIInterfaceOrientationPortrait           = 1,//UIDeviceOrientationPortrait,
-    UIInterfaceOrientationPortraitUpsideDown = 2,//UIDeviceOrientationPortraitUpsideDown,
-    UIInterfaceOrientationLandscapeLeft      = 4,//UIDeviceOrientationLandscapeRight,
-    UIInterfaceOrientationLandscapeRight     = 3,//UIDeviceOrientationLandscapeLeft
-} UIInterfaceOrientation;
-
-@interface SimulateTouch
-+(CGPoint)STScreenToWindowPoint:(CGPoint)point withOrientation:(int)orientation;
-+(CGPoint)STWindowToScreenPoint:(CGPoint)point withOrientation:(int)orientation;
-+(int)simulateTouch:(int)pathIndex atPoint:(CGPoint)point withType:(int)type;
-+(int)simulateSwipeFromPoint:(CGPoint)fromPoint toPoint:(CGPoint)toPoint duration:(float)duration;
-@end
+#import "SimulateTouch.h"
 
 #define PRINT_USAGE printf("[Usage]\n 1. Touch:\n    %s touch x y [orientation]\n\n 2. Swipe:\n   %s swipe fromX fromY toX toY [duration(0.3)] [orientation]\n\n[Example]\n   # %s touch 50 100\n   # %s swipe 50 100 100 200 0.5\n\n[Orientation]\n    Portrait:1 UpsideDown:2 Right:3 Left:4\n", argv[0], argv[0], argv[0], argv[0]);
 
@@ -38,16 +25,16 @@ int main(int argc, char **argv, char **envp) {
             int x = atoi(argv[2]);
             int y = atoi(argv[3]);
             
-            int r = [SimulateTouch simulateTouch:0 atPoint:CGPointMake(x, y) withType:1];
-            [SimulateTouch simulateTouch:r atPoint:CGPointMake(x, y) withType:2];
+            int r = [SimulateTouch simulateTouch:0 atPoint:CGPointMake(x, y) withType:STTouchDown];
+            [SimulateTouch simulateTouch:r atPoint:CGPointMake(x, y) withType:STTouchUp];
         }else if (argc == 5) {
             int px = atoi(argv[2]);
             int py = atoi(argv[3]);
             CGPoint p = CGPointMake(px, py);
             
             CGPoint rp = [SimulateTouch STWindowToScreenPoint:p withOrientation:atoi(argv[4])];
-            int r = [SimulateTouch simulateTouch:0 atPoint:rp withType:1];
-            [SimulateTouch simulateTouch:r atPoint:rp withType:2];
+            int r = [SimulateTouch simulateTouch:0 atPoint:rp withType:STTouchDown];
+            [SimulateTouch simulateTouch:r atPoint:rp withType:STTouchUp];
         }
         
     }else if (!strcmp(argv[1], "swipe")) {

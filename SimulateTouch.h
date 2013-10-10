@@ -6,6 +6,14 @@
  *
  */
 
+/*
+typedef enum {
+    UIInterfaceOrientationPortrait           = 1,//UIDeviceOrientationPortrait,
+    UIInterfaceOrientationPortraitUpsideDown = 2,//UIDeviceOrientationPortraitUpsideDown,
+    UIInterfaceOrientationLandscapeLeft      = 4,//UIDeviceOrientationLandscapeRight,
+    UIInterfaceOrientationLandscapeRight     = 3,//UIDeviceOrientationLandscapeLeft
+} UIInterfaceOrientation;
+*/
 
 typedef enum {
     STTouchMove = 0,
@@ -20,10 +28,10 @@ typedef enum {
 //  Window point: Orientated point
 
 //  Sreen point to window point. Portrait to 'orientation'
-+(CGPoint)STScreenToWindowPoint:(CGPoint)point withOrientation:(UIInterfaceOrientation)orientation;
++(CGPoint)STScreenToWindowPoint:(CGPoint)point withOrientation:(int)orientation;
 
 //  Window point to screen point. 'orientation' to Portrait.
-+(CGPoint)STWindowToScreenPoint:(CGPoint)point withOrientation:(UIInterfaceOrientation)orientation;
++(CGPoint)STWindowToScreenPoint:(CGPoint)point withOrientation:(int)orientation;
 
 
 //  if pathIndex is 0, SimulateTouch alloc its pathIndex.
