@@ -5,8 +5,8 @@
  */
 
 #import <mach/mach_time.h>
-
 #import <CoreGraphics/CoreGraphics.h>
+#import "../wavemessaging/WaveMessaging.h"
 
 #define LOOP_TIMES_IN_SECOND 40
 //60
@@ -50,7 +50,7 @@ typedef enum {
 @implementation STTouchA
 @end
 
-static CFMessagePortRef messagePort = NULL;
+//static CFMessagePortRef messagePort = NULL;
 static NSMutableArray* ATouchEvents = nil;
 static BOOL FTLoopIsRunning = FALSE;
 
@@ -58,48 +58,17 @@ static BOOL FTLoopIsRunning = FALSE;
 
 static int simulate_touch_event(int index, int type, CGPoint point) {
     
-    if (messagePort && !CFMessagePortIsValid(messagePort)){
-        CFRelease(messagePort);
-        messagePort = NULL;
-    }
-    if (!messagePort) {
-        messagePort = CFMessagePortCreateRemote(NULL, CFSTR(MACH_PORT_NAME));
-    }
-    if (!messagePort || !CFMessagePortIsValid(messagePort)) {
-        return 0; //kCFMessagePortIsInvalid;
-    }
-    
     STEvent event;
     event.type = type;
     event.index = index;
     event.point = point;
     
-    event.index = 1;
-    CFDataRef cfData = CFDataCreate(NULL, (uint8_t*)&event, sizeof(event));
-    CFMessagePortSendRequest(messagePort, 1/*type*/, cfData, 1, 1, kCFRunLoopDefaultMode, NULL); //kCFRunLoopCommonModes
+    NSData* stevent = [NSData dataWithBytes:&event length:sizeof(event)];
+    NSDictionary* message = @{@"type": [NSNumber numberWithInt:1], @"stevent": stevent};
+    NSDictionary* replyData = WaveMessagingSendMessageWithReply(@MACH_PORT_NAME, message);
     
-    if (cfData) {
-        CFRelease(cfData);
-    }
-    
-    return 1;
-    
-    //CFDataRef cfData = CFDataCreate(NULL, (uint8_t*)&event, sizeof(event));
-    CFDataRef rData = NULL;
-    
-    CFMessagePortSendRequest(messagePort, 1/*type*/, cfData, 1, 1, kCFRunLoopDefaultMode, &rData);
-    
-    if (cfData) {
-        CFRelease(cfData);
-    }
-    
-    int pathIndex;
-    [(NSData *)rData getBytes:&pathIndex length:sizeof(pathIndex)];
-    
-    if (rData) {
-        CFRelease(rData);
-    }
-    
+    int pathIndex = [[replyData objectForKey:@"pathIndex"] intValue];
+
     return pathIndex;
 }
 

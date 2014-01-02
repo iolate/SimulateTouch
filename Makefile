@@ -1,19 +1,18 @@
-FW_DEVICE_IP=10.0.1.4
-
-#ARCHS = armv7 armv7s
+FW_DEVICE_IP=10.0.1.3
 
 include theos/makefiles/common.mk
 
 TWEAK_NAME = SimulateTouch #STPoseWindow
 SimulateTouch_FILES = SimulateTouch.xm
 SimulateTouch_PRIVATE_FRAMEWORKS = GraphicsServices IOKit
-SimulateTouch_LDFLAGS = -lsubstrate
+SimulateTouch_LDFLAGS = -lsubstrate -lwavemessaging
 
 STPoseWindow_FILES = Tweak.xm
 STPoseWindow_FRAMEWORKS = UIKit
 
 LIBRARY_NAME = libsimulatetouch
 libsimulatetouch_FILES = STLibrary.mm
+libsimulatetouch_LDFLAGS = -lwavemessaging
 libsimulatetouch_INSTALL_PATH = /usr/lib/
 libsimulatetouch_FRAMEWORKS = UIKit CoreGraphics
 

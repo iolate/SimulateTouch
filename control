@@ -1,6 +1,6 @@
 Package: kr.iolate.simulatetouch
 Name: libSimulateTouch
-Depends: mobilesubstrate, firmware (>= 6.0)
+Depends: mobilesubstrate, firmware (>= 6.0), kr.iolate.wavemessaging
 Version: 0.6
 Architecture: iphoneos-arm
 Description: Simulate fake touch and swipe. Support multi-touch.

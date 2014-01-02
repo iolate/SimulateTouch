@@ -1,5 +1,5 @@
 /*
- * Name: libSimulateTouch
+ * Name: libSimulateTouch ( kr.iolate.simulatetouch )
  * Author: iolate <iolate@me.com>
  *
  */
@@ -8,14 +8,14 @@
 #include <mach/mach.h>
 #import <mach/mach_time.h>
 
-#import <GraphicsServices/GSEvent.h>
-
+//#import <GraphicsServices/GSEvent.h>
 #import <IOKit/hid/IOHIDEvent.h>
+#import "../wavemessaging/WaveMessaging.h"
+#import <CoreGraphics/CoreGraphics.h>
 
 //https://github.com/iolate/iOS-Private-Headers/tree/master/IOKit/hid
 #import "private-headers/IOKit/hid/IOHIDEvent7.h"
 #import "private-headers/IOKit/hid/IOHIDEventTypes7.h"
-#import "private-headers/IOKit/hid/IOHIDEventSystemConnection.h"
 
 #import <IOKit/hid/IOHIDEventSystem.h>
 
@@ -38,10 +38,9 @@
 @implementation STTouch
 @end
 
-static void SendTouchesEvent(mach_port_t port);
+static void SendTouchesEvent();
 
 static NSMutableDictionary* STTouches = nil; //Dictionary{index:STTouch}
-static unsigned int lastPort = 0;
 
 static BOOL iOS7 = NO;
 
@@ -52,10 +51,7 @@ static BOOL iOS7 = NO;
 @end
 
 @interface CAWindowServerDisplay
-{
-    @public
-    void *_impl;
-}
+
 -(unsigned)clientPortAtPosition:(CGPoint)position;
 -(unsigned)contextIdAtPosition:(CGPoint)position;
 - (unsigned int)clientPortOfContextId:(unsigned int)arg1;
@@ -69,78 +65,8 @@ static BOOL iOS7 = NO;
 - (void)userEventOccurred;
 @end
 
-#pragma mark - iOS6 declaration
-
-//Symbol not found error because this was added on iOS7
-void IOHIDEventSystemConnectionDispatchEvent(IOHIDEventSystemConnectionRef systemConnection, IOHIDEventRef event) __attribute__((weak));
-
-#define GSEventTypeMouse 0x0bb9 //kGSEventHand = 3001
-#define GSMouseEventTypeDown    0x1
-#define GSMouseEventTypeDragged 0x2
-#define GSMouseEventTypeCountChanged      0x5
-#define GSMouseEventTypeUp      0x6
-#define GSMouseEventTypeCancel  0x8
-
-#define PATHINFO_SIZE 11
-
 #define Int2String(i) [NSString stringWithFormat:@"%d", i]
-
-typedef struct GSPathInfoiOS6 {
-    uint8_t pathIndex;		// 0x0 = 0x5C
-    uint8_t pathIdentity;		// 0x1 = 0x5D
-    uint8_t pathProximity;	// 0x2 = 0x5E
-    uint8_t pathPressure;				// 0x4 = 0x60
-    uint32_t x04;		// 0x8 = 0x64
-    //uint32_t x08;
-    uint8_t test1;
-    uint8_t test2;
-    uint8_t test3;
-    uint8_t test4;
-    CGPoint pathLocation;
-    uint32_t x14;
-    uint16_t ignored;
-} GSPathInfoiOS6;
-
-@interface GSEventTouchProxyiOS6 : NSObject
-{
-@public
-    uint32_t ignored;
-    struct GSEventRecord record;
-    //--GSEventRecordInfo
-    //----GSEventHandInfo
-    uint32_t type;
-    uint16_t x34; //1
-    uint16_t x38; ////touching count
-    CGPoint x3a;
-    uint32_t x40;
-    //---- sizeof: 0x14
-    uint32_t x44;
-    uint32_t x48;
-    uint32_t x4c;
-    uint8_t x50; //iOS6 touch count?
-    uint8_t pathPositions; //touch count ( < iOS5) //0
-    uint16_t x52; //touch count ( >= iOS5) iOS6
-    //struct GSPathInfo pathInfo[];
-    //-- sizeof: 0x24
-    struct GSPathInfoiOS6 path[PATHINFO_SIZE]; // sizeof = 0x1C
-}
-@end
-@implementation GSEventTouchProxyiOS6
-@end
-
-#pragma mark - iOS7 declaration
-
 #define kIOHIDEventDigitizerSenderID 0x000000010000027F
-
-@interface BKAccessibility
-//IOHIDEventSystemConnectionRef
-+ (id)_eventRoutingClientConnectionManager;
-@end
-
-@interface BKHIDClientConnectionManager
-- (IOHIDEventSystemConnectionRef)clientForTaskPort:(unsigned int)arg1;
-- (IOHIDEventSystemConnectionRef)clientForBundleID:(id)arg1;
-@end
 
 #pragma mark - Implementation
 
@@ -170,7 +96,6 @@ static IOHIDEventSystemCallback original_callback;
 static void iohid_event_callback (void* target, void* refcon, IOHIDServiceRef service, IOHIDEventRef event) {
     if (IOHIDEventGetType(event) == kIOHIDEventTypeDigitizer) {
         [STTouches removeAllObjects];
-        lastPort = 0;
     }
     
     original_callback(target, refcon, service, event);
@@ -205,10 +130,10 @@ static void SimulateTouchEvent(mach_port_t port, int pathIndex, int type, CGPoin
     
     [STTouches setObject:touch forKey:Int2String(pathIndex)];
     
-    SendTouchesEvent(port);
+    SendTouchesEvent();
 }
 
-static void SendTouchesEvent(mach_port_t port) {
+static void SendTouchesEvent() {
     
     int touchCount = [[STTouches allKeys] count];
     
@@ -249,9 +174,15 @@ static void SendTouchesEvent(mach_port_t port) {
         id display = [[objc_getClass("CAWindowServer") serverIfRunning] displayWithName:@"LCD"];
         CGSize screen = [(CAWindowServerDisplay *)display bounds].size;
         //NSLog(@"### %@", display);
-        float rX = x/screen.width;
-        float rY = y/screen.height;
-        //
+        
+        float factor = 1.0f;
+        
+        if (screen.width == 640 || screen.width == 1546) {
+            factor = 2.0f;
+        }
+        
+        float rX = x/screen.width*factor;
+        float rY = y/screen.height*factor;
         
         IOHIDEventRef fingerEvent = IOHIDEventCreateDigitizerFingerEventWithQuality(kCFAllocatorDefault, timeStamp,
                                                                                     [pIndex intValue], i + 2, eventM, rX, rY, 0, 0, 0, 0, 0, 0, 0, 0, touch_, touch_, 0);
@@ -282,57 +213,9 @@ static void SendTouchesEvent(mach_port_t port) {
     //
     
     original_callback(NULL, NULL, NULL, handEvent);
-    
-    //id manager = [objc_getClass("BKAccessibility") _eventRoutingClientConnectionManager];
-    //IOHIDEventSystemConnectionRef systemConnection = [manager clientForTaskPort:port];
-    //_IOHIDEventSystemConnectionDispatchEvent(systemConnection, handEvent);
-}
-/*
-#define SB_SERVICES  "/System/Library/PrivateFrameworks/SpringBoardServices.framework/SpringBoardServices"
-mach_port_t getFrontMostAppPort()
-{
-    //bool locked;
-    //bool passcode;
-    mach_port_t *port;
-    void *lib = dlopen(SB_SERVICES, RTLD_LAZY);
-    int (*SBSSpringBoardServerPort)() = (int (*)())dlsym(lib, "SBSSpringBoardServerPort");
-    //void* (*SBGetScreenLockStatus)(mach_port_t* port, bool *lockStatus, bool *passcodeEnabled) = (void *(*)(mach_port_t *, bool *, bool *))dlsym(lib, "SBGetScreenLockStatus");
-    port = (mach_port_t *)SBSSpringBoardServerPort();
-    dlclose(lib);
-    //SBGetScreenLockStatus(port, &locked, &passcode);
-    void *(*SBFrontmostApplicationDisplayIdentifier)(mach_port_t *port, char *result) = (void
-                                                                                         *(*)(mach_port_t *, char *))dlsym(lib, "SBFrontmostApplicationDisplayIdentifier");
-    char appId[256];
-    memset(appId, 0, sizeof(appId));
-    SBFrontmostApplicationDisplayIdentifier(port, appId);
-    NSString * frontmostApp=[NSString stringWithFormat:@"%s",appId];
-    //GSGetPurpleSystemEventPort()
-    if([frontmostApp length] == 0) return GSCopyPurpleNamedPort("com.apple.springboard");
-    else return GSCopyPurpleNamedPort(appId);
 }
 
-static unsigned int poseWindowContext = -1;
-%hook CAWindowServerDisplay
-
-- (unsigned int)clientPortOfContextId:(unsigned int)arg1 {
-    //iOS6 use this
-    if (arg1 == poseWindowContext) {
-        return getFrontMostAppPort();
-    }
-    
-    return %orig;
-}
--(unsigned)clientPortAtPosition:(CGPoint)position {
-    unsigned contextId = [self contextIdAtPosition:position];
-    return [self clientPortOfContextId:contextId];
-}
-%end
-*/
 #pragma mark - Communicate with Library
-
-@interface CAContextImpl : NSObject
-
-@end
 
 typedef struct {
     int type;
@@ -340,84 +223,36 @@ typedef struct {
     CGPoint point;
 } STEvent;
 
-static CFDataRef messageCallBack(CFMessagePortRef local, SInt32 msgid, CFDataRef cfData, void *info)
-{
+NSDictionary* waveMessagingCallBack(NSString* serviceName, NSDictionary* contents, BOOL reply) {
+    int msgid = [[contents objectForKey:@"type"] intValue];
+    
     DLog(@"### ST: Receive Message Id: %d", (int)msgid);
     if (msgid == 1) {
-        if (CFDataGetLength(cfData) == sizeof(STEvent)) {
-            STEvent* touch = (STEvent *)[(NSData *)cfData bytes];
+        NSData* cfData = [contents objectForKey:@"stevent"];
+        if ([cfData length] == sizeof(STEvent)) {
+            STEvent* touch = (STEvent *)[cfData bytes];
             if (touch != NULL) {
                 
-                if (iOS7) {
-                    
-                    id display = [[objc_getClass("CAWindowServer") serverIfRunning] displayWithName:@"LCD"];
-                    unsigned int contextId = [display contextIdAtPosition:touch->point];
-                    unsigned int port = [display taskPortOfContextId:contextId];
-                    
-                    if (lastPort && lastPort != port) {
-                        [STTouches removeAllObjects];
-                    }
-                    lastPort = port;
-                    
-                    int pathIndex = touch->index;
-                    DLog(@"### ST: Received Path Index: %d", pathIndex);
-                    if (pathIndex == 0) {
-                        pathIndex = getExtraIndexNumber();
-                    }
-                    
-                    SimulateTouchEvent(port, pathIndex, touch->type, touch->point);
-                    
-                    return (CFDataRef)[[NSData alloc] initWithBytes:&pathIndex length:sizeof(pathIndex)];
-                    
-                }else{
-                    id display = [[objc_getClass("CAWindowServer") serverIfRunning] displayWithName:@"LCD"];
-                    void* _impl = ((CAWindowServerDisplay *)display)->_impl;
-                    //NSLog(@"### impl %lu", sizeof(_impl));
-                    
-                    NSLog(@"### impl %lu", sizeof(*_impl));
-                    unsigned port = [display clientPortAtPosition:touch->point];
-                    
-                    if (port == 0) {
-                        //screen is dim.
-                        NSLog(@"### ST: Screen is dim.");
-                        int pathIndex = 0;
-                        return (CFDataRef)[[NSData alloc] initWithBytes:&pathIndex length:sizeof(pathIndex)];
-                    }
-                    
-                    if (lastPort && lastPort != port) {
-                        [STTouches removeAllObjects];
-                    }
-                    lastPort = port;
-                    
-                    int pathIndex = touch->index;
-                    DLog(@"### ST: Received Path Index: %d", pathIndex);
-                    if (pathIndex == 0) {
-                        pathIndex = getExtraIndexNumber();
-                    }
-                    
-                    SimulateTouchEvent(port, pathIndex, touch->type, touch->point);
-                    
-                    return (CFDataRef)[[NSData alloc] initWithBytes:&pathIndex length:sizeof(pathIndex)];
-                    
+                int pathIndex = touch->index;
+                DLog(@"### ST: Received Path Index: %d", pathIndex);
+                if (pathIndex == 0) {
+                    pathIndex = getExtraIndexNumber();
                 }
                 
+                SimulateTouchEvent(0, pathIndex, touch->type, touch->point);
+                
+                return @{@"pathIndex": [NSNumber numberWithInt:pathIndex]};
+                
             }else{
-                return 0;
+                return nil;
             }
         }
-    }/*else if (msgid == 2) {
-        unsigned int contextId;
-        [(NSData *)cfData getBytes:&contextId length:sizeof(contextId)];
-        
-        poseWindowContext = contextId;
-        
-        return NULL;
-    }*/else {
-        NSLog(@"SimulateTouchServer: Unknown message type: %d", (int)msgid); //%x
-    }
+    }else {
+          NSLog(@"SimulateTouchServer: Unknown message type: %d", (int)msgid); //%x
+      }
     
     // Do not return a reply to the caller
-    return NULL;
+    return nil;
 }
 
 #pragma mark - MSInitialize
@@ -425,25 +260,17 @@ static CFDataRef messageCallBack(CFMessagePortRef local, SInt32 msgid, CFDataRef
 #define MACH_PORT_NAME "kr.iolate.simulatetouch"
 
 MSInitialize {
-    //MSHookFunction(&, MSHake());
-    
     STTouches = [[NSMutableDictionary alloc] init];
     MSHookFunction(IOHIDEventSystemOpen, MSHake(IOHIDEventSystemOpen));
     
     if (objc_getClass("BKHIDSystemInterface")) {
         iOS7 = YES;
-        //MSHookFunction(&IOHIDEventSystemConnectionDispatchEvent, MSHake(IOHIDEventSystemConnectionDispatchEvent));
     }else{
         //iOS6
         iOS7 = NO;
-        //MSHookFunction(&GSSendEvent, MSHake(GSSendEvent));
     }
-    
     //MSHookFunction(&IOHIDEventCreateDigitizerEvent, MSHake(IOHIDEventCreateDigitizerEvent));
     //MSHookFunction(&IOHIDEventCreateDigitizerFingerEventWithQuality, MSHake(IOHIDEventCreateDigitizerFingerEventWithQuality));
     
-    
-    CFMessagePortRef local = CFMessagePortCreateLocal(NULL, CFSTR(MACH_PORT_NAME), messageCallBack, NULL, NULL);
-    CFRunLoopSourceRef source = CFMessagePortCreateRunLoopSource(NULL, local, 0);
-    CFRunLoopAddSource(CFRunLoopGetCurrent(), source, kCFRunLoopDefaultMode);
+    WaveMessagingStartService(@MACH_PORT_NAME, waveMessagingCallBack);
 }
