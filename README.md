@@ -9,4 +9,5 @@ Support iOS6 and 7
 
 
 API Info: http://api.iolate.kr/simulatetouch/
-and refer to main.mm (stouch; command line tool) for how to use
+
+and refer to main.mm (stouch; command line tool) for how to use.

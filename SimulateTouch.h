@@ -1,5 +1,5 @@
 /*
- * Name: libSimulateTouch
+ * Name: libSimulateTouch (kr.iolate.simulatetouch)
  * Author: iolate <iolate@me.com>
  *
  * http://api.iolate.kr/simulatetouch/

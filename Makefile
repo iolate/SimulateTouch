@@ -4,10 +4,13 @@ FW_DEVICE_IP=10.0.1.4
 
 include theos/makefiles/common.mk
 
-TWEAK_NAME = SimulateTouch
-SimulateTouch_FILES = SimulateTouch.mm
+TWEAK_NAME = SimulateTouch #STPoseWindow
+SimulateTouch_FILES = SimulateTouch.xm
 SimulateTouch_PRIVATE_FRAMEWORKS = GraphicsServices IOKit
 SimulateTouch_LDFLAGS = -lsubstrate
+
+STPoseWindow_FILES = Tweak.xm
+STPoseWindow_FRAMEWORKS = UIKit
 
 LIBRARY_NAME = libsimulatetouch
 libsimulatetouch_FILES = STLibrary.mm

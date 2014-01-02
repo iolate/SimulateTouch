@@ -8,7 +8,8 @@
 
 #import <CoreGraphics/CoreGraphics.h>
 
-#define LOOP_TIMES_IN_SECOND 60
+#define LOOP_TIMES_IN_SECOND 40
+//60
 #define MACH_PORT_NAME "kr.iolate.simulatetouch"
 
 typedef enum {
@@ -73,7 +74,17 @@ static int simulate_touch_event(int index, int type, CGPoint point) {
     event.index = index;
     event.point = point;
     
+    event.index = 1;
     CFDataRef cfData = CFDataCreate(NULL, (uint8_t*)&event, sizeof(event));
+    CFMessagePortSendRequest(messagePort, 1/*type*/, cfData, 1, 1, kCFRunLoopDefaultMode, NULL); //kCFRunLoopCommonModes
+    
+    if (cfData) {
+        CFRelease(cfData);
+    }
+    
+    return 1;
+    
+    //CFDataRef cfData = CFDataCreate(NULL, (uint8_t*)&event, sizeof(event));
     CFDataRef rData = NULL;
     
     CFMessagePortSendRequest(messagePort, 1/*type*/, cfData, 1, 1, kCFRunLoopDefaultMode, &rData);
@@ -212,6 +223,7 @@ static void _simulateTouchLoop()
 +(int)simulateTouch:(int)pathIndex atPoint:(CGPoint)point withType:(STTouchType)type
 {
     int r = simulate_touch_event(pathIndex, type, point);
+    
     if (r == 0) {
         NSLog(@"ST Error: simulateTouch:atPoint:withType: index:%d type:%d pathIndex:0", pathIndex, type);
         return 0;
