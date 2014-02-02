@@ -202,6 +202,7 @@ static void SendTouchesEvent(mach_port_t port) {
         float y = touch->point.y;
         
         float rX, rY;
+        
         if (iOS7) {
             rX = x;
             rY = y;
@@ -210,11 +211,15 @@ static void SendTouchesEvent(mach_port_t port) {
             id display = [[objc_getClass("CAWindowServer") serverIfRunning] displayWithName:@"LCD"];
             CGSize screen = [(CAWindowServerDisplay *)display bounds].size;
             
-            float factor = 1.0f;
-            if (screen.width == 640 || screen.width == 1536) factor = 2.0f;
+            //I don't know why, but iPad Air's screen size is {width:2048,height:1536}
+            float width = MIN(screen.width, screen.height);
+            float height = MAX(screen.width, screen.height);
             
-            rX = x/screen.width*factor;
-            rY = y/screen.height*factor;
+            float factor = 1.0f;
+            if (width == 640 || width == 1536) factor = 2.0f;
+            
+            rX = x/width*factor;
+            rY = y/height*factor;
         }
 
         IOHIDEventRef fingerEvent = IOHIDEventCreateDigitizerFingerEventWithQuality(kCFAllocatorDefault, timeStamp,
