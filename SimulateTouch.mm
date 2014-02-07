@@ -21,7 +21,7 @@
 
 #pragma mark - Common declaration
 
-#define DEBUG
+//#define DEBUG
 #ifdef DEBUG
 #   define DLog(...) NSLog(__VA_ARGS__)
 #else
@@ -264,8 +264,10 @@ static void SendTouchesEvent(mach_port_t port) {
 typedef struct {
     int type;
     int index;
-    CGPoint point;
+    float point_x;
+    float point_y;
 } STEvent;
+#define POINT(a) CGPointMake(a->point_x, a->point_y)
 
 static CFDataRef messageCallBack(CFMessagePortRef local, SInt32 msgid, CFDataRef cfData, void *info)
 {
@@ -278,7 +280,7 @@ static CFDataRef messageCallBack(CFMessagePortRef local, SInt32 msgid, CFDataRef
                 unsigned int port = 0;
                 if (iOS7) {
                     id display = [[objc_getClass("CAWindowServer") serverIfRunning] displayWithName:@"LCD"];
-                    unsigned int contextId = [display contextIdAtPosition:touch->point];
+                    unsigned int contextId = [display contextIdAtPosition:POINT(touch)];
                     port = [display taskPortOfContextId:contextId];
                     
                     if (lastPort && lastPort != port) {
@@ -293,13 +295,15 @@ static CFDataRef messageCallBack(CFMessagePortRef local, SInt32 msgid, CFDataRef
                     pathIndex = getExtraIndexNumber();
                 }
                 
-                SimulateTouchEvent(port, pathIndex, touch->type, touch->point);
+                SimulateTouchEvent(port, pathIndex, touch->type, POINT(touch));
                 
                 return (CFDataRef)[[NSData alloc] initWithBytes:&pathIndex length:sizeof(pathIndex)];
             }else{
+                DLog(@"### ST: Received STEvent is nil");
                 return NULL;
             }
         }
+        DLog(@"### ST: Received data is not STEvent. event size: %lu received size: %lu", sizeof(STEvent), CFDataGetLength(cfData));
     } else {
         NSLog(@"### ST: Unknown message type: %d", (int)msgid); //%x
     }

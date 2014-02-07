@@ -21,7 +21,8 @@ typedef enum {
 typedef struct {
     int type;
     int index;
-    CGPoint point;
+    float point_x;
+    float point_y;
 } STEvent;
 
 typedef enum {
@@ -73,7 +74,8 @@ static int simulate_touch_event(int index, int type, CGPoint point) {
     STEvent event;
     event.type = type;
     event.index = index;
-    event.point = point;
+    event.point_x = point.x;
+    event.point_y = point.y;
     
     CFDataRef cfData = CFDataCreate(NULL, (uint8_t*)&event, sizeof(event));
     CFDataRef rData = NULL;
