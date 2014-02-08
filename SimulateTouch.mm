@@ -64,7 +64,10 @@ static BOOL iOS7 = NO;
 
 @interface BKUserEventTimer
 + (id)sharedInstance;
-- (void)userEventOccurred;
+- (void)userEventOccurred; //iOS6
+- (void)userEventOccurredOnDisplay:(id)arg1; //iOS7
+
+-(BOOL)respondsToSelector:(SEL)selector;
 @end
 
 @interface BKHIDSystemInterface
@@ -250,9 +253,19 @@ static void SendTouchesEvent(mach_port_t port) {
     IOHIDEventSetIntegerValueWithOptions(handEvent, kIOHIDEventFieldDigitizerTouch, handEventTouch, -268435456);
     //IOHIDEventSetIntegerValueWithOptions(handEvent, kIOHIDEventFieldDigitizerIndex, (1<<22) + (int)pow(2.0, (double)(touchingCount+1)) - 2, -268435456);
     
+    BKUserEventTimer* etimer = [NSClassFromString(@"BKUserEventTimer") sharedInstance];
+    
+    if ([etimer respondsToSelector:@selector(userEventOccurred)]) {
+        [etimer userEventOccurred];
+    }else if ([etimer respondsToSelector:@selector(userEventOccurredOnDisplay:)]) {
+        [etimer userEventOccurredOnDisplay:nil];
+    }
+    
     if (iOS7) {
         id manager = [objc_getClass("BKAccessibility") _eventRoutingClientConnectionManager];
         IOHIDEventSystemConnectionRef systemConnection = [manager clientForTaskPort:port];
+        if (systemConnection == nil) return;
+        
         _IOHIDEventSystemConnectionDispatchEvent(systemConnection, handEvent);
     }else {
         original_callback(NULL, NULL, NULL, handEvent);
