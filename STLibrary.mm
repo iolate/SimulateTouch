@@ -151,7 +151,7 @@ static void _simulateTouchLoop()
                 
             }else {
                 //Up
-                
+                simulate_touch_event(touch->pathIndex, STTouchMove, touch->endPoint);
                 int r = simulate_touch_event(touch->pathIndex, STTouchUp, touch->endPoint);
                 if (r == 0) {
                     NSLog(@"ST Error: touchLoop type:2 index:%d, point:(%d,%d) pathIndex:0", touch->pathIndex, (int)touch->endPoint.x, (int)touch->endPoint.y);
