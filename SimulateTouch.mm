@@ -11,6 +11,7 @@
 
 #import <IOKit/hid/IOHIDEvent.h>
 #import <IOKit/hid/IOHIDEventSystem.h>
+#import <IOKit/hid/IOHIDEventSystemClient.h>
 
 //https://github.com/iolate/iOS-Private-Headers/tree/master/IOKit/hid
 #import "private-headers/IOKit/hid/IOHIDEvent7.h"
@@ -109,20 +110,6 @@ MSHook(IOHIDEventRef, IOHIDEventCreateDigitizerFingerEventWithQuality, CFAllocat
     return _IOHIDEventCreateDigitizerFingerEventWithQuality(allocator, timeStamp, index, identity, eventMask, x, y, z, tipPressure, twist, minorRadius, majorRadius, quality, density, irregularity, range, touch, options);
 }*/
 
-//On iOS6, Symbol not found error because this was added on iOS7
-//void IOHIDEventSystemConnectionDispatchEvent(IOHIDEventSystemConnectionRef systemConnection, IOHIDEventRef event) __attribute__((weak));
-//MSHook(void, IOHIDEventSystemConnectionDispatchEvent, IOHIDEventSystemConnectionRef systemConnection, IOHIDEventRef event) { }
-static void (*_IOHIDEventSystemConnectionDispatchEvent)(IOHIDEventSystemConnectionRef systemConnection, IOHIDEventRef event);
-static void hook_IOHIDEventSystemConnectionDispatchEvent(IOHIDEventSystemConnectionRef systemConnection, IOHIDEventRef event) {
-    //Only for iOS7
-    if (IOHIDEventSystemConnectionGetType(systemConnection) == 3 && IOHIDEventGetType(event) == 11) {
-        [STTouches removeAllObjects];
-        lastPort = 0;
-    }
-    
-    _IOHIDEventSystemConnectionDispatchEvent(systemConnection, event);
-}
-
 
 static IOHIDEventSystemCallback original_callback;
 static void iohid_event_callback (void* target, void* refcon, IOHIDServiceRef service, IOHIDEventRef event) {
@@ -163,6 +150,22 @@ static void SimulateTouchEvent(mach_port_t port, int pathIndex, int type, CGPoin
     
     SendTouchesEvent(port);
 }
+
+// ============= from veency http://gitweb.saurik.com/veency.git
+extern "C" {
+    IOHIDEventSystemClientRef IOHIDEventSystemClientCreate(CFAllocatorRef allocator);
+    void IOHIDEventSystemClientDispatchEvent(IOHIDEventSystemClientRef client, IOHIDEventRef event);
+}
+static void SendHIDEvent(IOHIDEventRef event) {
+    static IOHIDEventSystemClientRef client_(NULL);
+    if (client_ == NULL)
+        client_ = IOHIDEventSystemClientCreate(kCFAllocatorDefault);
+    
+    IOHIDEventSetSenderID(event, 0xDEFACEDBEEFFECE5);
+    IOHIDEventSystemClientDispatchEvent(client_, event);
+    CFRelease(event);
+}
+// =============
 
 static void SendTouchesEvent(mach_port_t port) {
     
@@ -206,24 +209,23 @@ static void SendTouchesEvent(mach_port_t port) {
         
         float rX, rY;
         
-        if (iOS7) {
-            rX = x;
-            rY = y;
-        }else{
-            //0~1 point
-            id display = [[objc_getClass("CAWindowServer") serverIfRunning] displayWithName:@"LCD"];
-            CGSize screen = [(CAWindowServerDisplay *)display bounds].size;
-            
-            //I don't know why, but iPad Air's screen size is {width:2048,height:1536}
-            float width = MIN(screen.width, screen.height);
-            float height = MAX(screen.width, screen.height);
-            
-            float factor = 1.0f;
-            if (width == 640 || width == 1536) factor = 2.0f;
-            
-            rX = x/width*factor;
-            rY = y/height*factor;
-        }
+        //=========================
+        
+        //0~1 point
+        id display = [[objc_getClass("CAWindowServer") serverIfRunning] displayWithName:@"LCD"];
+        CGSize screen = [(CAWindowServerDisplay *)display bounds].size;
+        
+        //I don't know why, but iPad Air's screen size is {width:2048,height:1536}
+        float width = MIN(screen.width, screen.height);
+        float height = MAX(screen.width, screen.height);
+        
+        float factor = 1.0f;
+        if (width == 640 || width == 1536) factor = 2.0f;
+        
+        rX = x/width*factor;
+        rY = y/height*factor;
+        
+        //=========================
 
         IOHIDEventRef fingerEvent = IOHIDEventCreateDigitizerFingerEventWithQuality(kCFAllocatorDefault, timeStamp,
                                                                                     [pIndex intValue], i + 2, eventM, rX, rY, 0, 0, 0, 0, 0, 0, 0, 0, touch_, touch_, 0);
@@ -262,11 +264,7 @@ static void SendTouchesEvent(mach_port_t port) {
     }
     
     if (iOS7) {
-        id manager = [objc_getClass("BKAccessibility") _eventRoutingClientConnectionManager];
-        IOHIDEventSystemConnectionRef systemConnection = [manager clientForTaskPort:port];
-        if (systemConnection == nil) return;
-        
-        _IOHIDEventSystemConnectionDispatchEvent(systemConnection, handEvent);
+       SendHIDEvent(handEvent);
     }else {
         original_callback(NULL, NULL, NULL, handEvent);
     }
@@ -345,9 +343,6 @@ MSInitialize {
     
     if (objc_getClass("BKHIDSystemInterface")) {
         iOS7 = YES;
-        dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_LAZY);
-        MSHookFunction(((int *)MSFindSymbol(NULL, "_IOHIDEventSystemConnectionDispatchEvent")), (void *)hook_IOHIDEventSystemConnectionDispatchEvent, (void **)&_IOHIDEventSystemConnectionDispatchEvent);
-        //MSHookFunction(IOHIDEventSystemConnectionDispatchEvent, MSHake(IOHIDEventSystemConnectionDispatchEvent));
     }else{
         //iOS6
         MSHookFunction(IOHIDEventSystemOpen, MSHake(IOHIDEventSystemOpen));
