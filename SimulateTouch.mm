@@ -221,6 +221,9 @@ static void SendTouchesEvent(mach_port_t port) {
         
         float factor = 1.0f;
         if (width == 640 || width == 1536) factor = 2.0f;
+        else if (width == 750) factor = 2.0f; // iPhone6, I don't have this so I cannot sure.
+        else if (width == 1242 || width == 1080) factor = 3.0f; //iPhone6+, I don't have this so I cannot sure.
+        
         
         rX = x/width*factor;
         rY = y/height*factor;

@@ -1,4 +1,4 @@
-FW_DEVICE_IP=192.168.11.5
+FW_DEVICE_IP=192.168.11.4
 
 include theos/makefiles/common.mk
 

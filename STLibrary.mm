@@ -68,6 +68,7 @@ static int simulate_touch_event(int index, int type, CGPoint point) {
         //messagePort = CFMessagePortCreateRemote(NULL, CFSTR(MACH_PORT_NAME));
     }
     if (!messagePort || !CFMessagePortIsValid(messagePort)) {
+        NSLog(@"ST Error: MessagePort is invalid");
         return 0; //kCFMessagePortIsInvalid;
     }
     
