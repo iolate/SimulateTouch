@@ -15,12 +15,16 @@
 typedef enum {
     STTouchMove = 0,
     STTouchDown,
-    STTouchUp
+    STTouchUp,
+
+    // For these types, (int)point_x denotes button type
+    STButtonUp,
+    STButtonDown
 } STTouchType;
 
 typedef struct {
-    int type;
-    int index;
+    int type;       // STTouchType values
+    int index;      // pathIndex holder in message
     float point_x;
     float point_y;
 } STEvent;
@@ -57,8 +61,7 @@ static BOOL FTLoopIsRunning = FALSE;
 
 #pragma mark -
 
-static int simulate_touch_event(int index, int type, CGPoint point) {
-    
+static int send_event(STEvent *event) {
     if (messagePort && !CFMessagePortIsValid(messagePort)){
         CFRelease(messagePort);
         messagePort = NULL;
@@ -71,14 +74,8 @@ static int simulate_touch_event(int index, int type, CGPoint point) {
         NSLog(@"ST Error: MessagePort is invalid");
         return 0; //kCFMessagePortIsInvalid;
     }
-    
-    STEvent event;
-    event.type = type;
-    event.index = index;
-    event.point_x = point.x;
-    event.point_y = point.y;
-    
-    CFDataRef cfData = CFDataCreate(NULL, (uint8_t*)&event, sizeof(event));
+
+    CFDataRef cfData = CFDataCreate(NULL, (uint8_t*)event, sizeof(*event));
     CFDataRef rData = NULL;
     
     CFMessagePortSendRequest(messagePort, 1/*type*/, cfData, 1, 1, kCFRunLoopDefaultMode, &rData);
@@ -95,7 +92,28 @@ static int simulate_touch_event(int index, int type, CGPoint point) {
     }
     
     return pathIndex;
+}
 
+static int simulate_button_event(int index, int button, int state) {
+    STEvent event;
+    event.index = index;
+    
+    event.type    = (int)STButtonUp + state;
+    event.point_x = button;
+    event.point_y = 0.0f;
+
+    return send_event(&event);
+}
+
+static int simulate_touch_event(int index, int type, CGPoint point) {
+    STEvent event;
+    event.index = index;
+    
+    event.type = type;
+    event.point_x = point.x;
+    event.point_y = point.y;
+    
+    return send_event(&event);
 }
 
 double MachTimeToSecs(uint64_t time)
@@ -213,6 +231,17 @@ static void _simulateTouchLoop()
     }else if (orientation == UIInterfaceOrientationLandscapeRight) {
         return CGPointMake(screen.width - point.y, point.x);
     }else return point;
+}
+
++(int)simulateButton:(int)button state:(int)state
+{
+    int r = simulate_button_event(0, button, state);
+    
+    if (r == 0) {
+        NSLog(@"ST Error: simulateButton:state: button:%d state:%d pathIndex:0", button, state);
+        return 0;
+    }
+    return r;
 }
 
 +(int)simulateTouch:(int)pathIndex atPoint:(CGPoint)point withType:(STTouchType)type

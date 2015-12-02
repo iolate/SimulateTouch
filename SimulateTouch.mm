@@ -12,6 +12,7 @@
 #import <IOKit/hid/IOHIDEvent.h>
 #import <IOKit/hid/IOHIDEventSystem.h>
 #import <IOKit/hid/IOHIDEventSystemClient.h>
+#import <IOKit/hidsystem/IOHIDUsageTables.h>
 
 //https://github.com/iolate/iOS-Private-Headers/tree/master/IOKit/hid
 #import "private-headers/IOKit/hid/IOHIDEvent7.h"
@@ -32,7 +33,7 @@
 @interface STTouch : NSObject
 {
 @public
-    int type; //터치 종류 0: move/stay 1: down 2: up
+    int type; //터치 종류 0: move/stay 1: down 2: up 3: button up 4: button down
     CGPoint point;
 }
 @end
@@ -201,53 +202,70 @@ static void SendTouchesEvent(mach_port_t port) {
         STTouch* touch = [STTouches objectForKey:pIndex];
         int touchType = touch->type;
         
-        int eventM = (touchType == 0) ? kIOHIDDigitizerEventPosition : (kIOHIDDigitizerEventRange | kIOHIDDigitizerEventTouch); //Originally, 0, 1 and 2 are used too...
-        int touch_ = (touchType == 2) ? 0 : 1;
-        
-        float x = touch->point.x;
-        float y = touch->point.y;
-        
-        float rX, rY;
-        
-        //=========================
-        
-        //0~1 point
-        id display = [[objc_getClass("CAWindowServer") serverIfRunning] displayWithName:@"LCD"];
-        CGSize screen = [(CAWindowServerDisplay *)display bounds].size;
-        
-        //I don't know why, but iPad Air's screen size is {width:2048,height:1536}
-        float width = MIN(screen.width, screen.height);
-        float height = MAX(screen.width, screen.height);
-        
-        float factor = 1.0f;
-        if (width == 640 || width == 1536) factor = 2.0f;
-        else if (width == 750) factor = 2.0f; // iPhone6, I don't have this so I cannot sure.
-        else if (width == 1242 || width == 1080) factor = 3.0f; //iPhone6+, I don't have this so I cannot sure.
-        
-        
-        rX = x/width*factor;
-        rY = y/height*factor;
-        
-        //=========================
+        DLog(@"### touchType:%d", touchType);
+        if (touchType < 3) { // Less than STButtonUp - see STLibrary.mm's STTouchType
+            int eventM = (touchType == 0) ? kIOHIDDigitizerEventPosition : (kIOHIDDigitizerEventRange | kIOHIDDigitizerEventTouch); //Originally, 0, 1 and 2 are used too...
+            int touch_ = (touchType == 2) ? 0 : 1;
+            
+            float x = touch->point.x;
+            float y = touch->point.y;
+            
+            float rX, rY;
+            
+            //=========================
+            
+            //0~1 point
+            id display = [[objc_getClass("CAWindowServer") serverIfRunning] displayWithName:@"LCD"];
+            CGSize screen = [(CAWindowServerDisplay *)display bounds].size;
+            
+            //I don't know why, but iPad Air's screen size is {width:2048,height:1536}
+            float width = MIN(screen.width, screen.height);
+            float height = MAX(screen.width, screen.height);
+            
+            float factor = 1.0f;
+            if (width == 640 || width == 1536) factor = 2.0f;
+            else if (width == 750) factor = 2.0f; // iPhone6, I don't have this so I cannot sure.
+            else if (width == 1242 || width == 1080) factor = 3.0f; //iPhone6+, I don't have this so I cannot sure.
+            
+            
+            rX = x/width*factor;
+            rY = y/height*factor;
+            
+            //=========================
 
-        IOHIDEventRef fingerEvent = IOHIDEventCreateDigitizerFingerEventWithQuality(kCFAllocatorDefault, timeStamp,
-                                                                                    [pIndex intValue], i + 2, eventM, rX, rY, 0, 0, 0, 0, 0, 0, 0, 0, touch_, touch_, 0);
-        IOHIDEventAppendEvent(handEvent, fingerEvent);
-        i++;
-        
-        handEventTouch |= touch_;
-        if (touchType == 0) {
-            handEventMask |= kIOHIDDigitizerEventPosition; //4
-        }else{
-            handEventMask |= (kIOHIDDigitizerEventRange | kIOHIDDigitizerEventTouch | kIOHIDDigitizerEventIdentity); //1 + 2 + 32 = 35
-        }
-        
-        if (touchType == 2) {
-            handEventMask |= kIOHIDDigitizerEventPosition;
-            [STTouches removeObjectForKey:pIndex];
-            [touch release];
-        }else{
-            touchingCount++;
+            IOHIDEventRef fingerEvent = IOHIDEventCreateDigitizerFingerEventWithQuality(kCFAllocatorDefault, timeStamp,
+                                                                                        [pIndex intValue], i + 2, eventM, rX, rY, 0, 0, 0, 0, 0, 0, 0, 0, touch_, touch_, 0);
+            IOHIDEventAppendEvent(handEvent, fingerEvent);
+            i++;
+            
+            handEventTouch |= touch_;
+            if (touchType == 0) {
+                handEventMask |= kIOHIDDigitizerEventPosition; //4
+            }else{
+                handEventMask |= (kIOHIDDigitizerEventRange | kIOHIDDigitizerEventTouch | kIOHIDDigitizerEventIdentity); //1 + 2 + 32 = 35
+            }
+            
+            if (touchType == 2) {
+                handEventMask |= kIOHIDDigitizerEventPosition;
+                [STTouches removeObjectForKey:pIndex];
+                [touch release];
+            }else{
+                touchingCount++;
+            }
+        } else {
+            // This is a button event, not a touch event.
+            int state  = touchType - 3; // 3 == STButtonUp - see STLibrary.mm's STTouchType
+            int button = (int)touch->point.x;
+            DLog(@"### button:%d state:%d", button, state);
+            
+            int hidButton = kHIDUsage_Csmr_Power;
+            if (button == 1) hidButton = kHIDUsage_Csmr_Menu;
+            
+            IOHIDEventRef buttonEvent = IOHIDEventCreateKeyboardEvent(kCFAllocatorDefault,
+                                                                      timeStamp,
+                                                                      kHIDPage_Consumer,
+                                                                      hidButton, state, 0);
+            SendHIDEvent(buttonEvent);
         }
     }
     
@@ -276,8 +294,8 @@ static void SendTouchesEvent(mach_port_t port) {
 #pragma mark - Communicate with Library
 
 typedef struct {
-    int type;
-    int index;
+    int type;       // STTouchType values
+    int index;      // pathIndex holder in message
     float point_x;
     float point_y;
 } STEvent;
@@ -362,4 +380,6 @@ MSInitialize {
     
     CFRunLoopSourceRef source = CFMessagePortCreateRunLoopSource(NULL, local, 0);
     CFRunLoopAddSource(CFRunLoopGetCurrent(), source, kCFRunLoopDefaultMode);
+
+    NSLog(@"### ST: Mach port initialized successfully.");
 }

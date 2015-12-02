@@ -18,7 +18,11 @@ typedef enum {
 typedef enum {
     STTouchMove = 0,
     STTouchDown,
-    STTouchUp
+    STTouchUp,
+
+    // For these types, (int)point_x denotes button type
+    STButtonUp,
+    STButtonDown
 } STTouchType;
 
 //Library - libsimulatetouch.dylib
@@ -38,6 +42,7 @@ typedef enum {
 //  retrun value is pathIndex. if 0, touch was failed.
 
 //  Class methods' point is screen point.
++(int)simulateButton:(int)button state:(int)state;
 +(int)simulateTouch:(int)pathIndex atPoint:(CGPoint)point withType:(STTouchType)type;
 +(int)simulateSwipeFromPoint:(CGPoint)fromPoint toPoint:(CGPoint)toPoint duration:(float)duration;
 @end
