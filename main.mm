@@ -7,7 +7,7 @@
 #import <CoreGraphics/CoreGraphics.h>
 #import "SimulateTouch.h"
 
-#define PRINT_USAGE printf("[Usage]\n 1. Touch:\n    %s touch x y [orientation]\n\n 2. Swipe:\n   %s swipe fromX fromY toX toY [duration(0.3)] [orientation]\n\n[Example]\n   # %s touch 50 100\n   # %s swipe 50 100 100 200 0.5\n\n[Orientation]\n    Portrait:1 UpsideDown:2 Right:3 Left:4\n", argv[0], argv[0], argv[0], argv[0]);
+#define PRINT_USAGE printf("[Usage]\n 1. Touch:\n    %s touch x y [orientation]\n\n 2. Swipe:\n   %s swipe fromX fromY toX toY [duration(0.3)] [orientation]\n\n 3. Button: \n    %s button Type State\n\n[Example]\n   # %s touch 50 100\n   # %s swipe 50 100 100 200 0.5\n   # %s button 0 1\n   # %s button 1 0\n\n[Orientation]\n    Portrait:1 UpsideDown:2 Right:3 Left:4\n\n[Button]\n    Power:0 Home:1\n\n[State]\n    Up/Raise:0 Down/Press:1\n\n", argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0]);
 
 int main(int argc, char **argv, char **envp) {
     if (argc == 1) {
@@ -66,6 +66,16 @@ int main(int argc, char **argv, char **envp) {
         }
         
         CFRunLoopRunInMode(kCFRunLoopDefaultMode , duration+0.1f, NO);
+    }else if (!strcmp(argv[1], "button")) {
+        if (argc != 4) {
+            PRINT_USAGE;
+            return 0;
+        }
+        
+        int button = atoi(argv[2]);
+        int state  = atoi(argv[3]);
+        
+        [SimulateTouch simulateButton:button state:state];
     }else{
         PRINT_USAGE;
         return 0;
