@@ -29,17 +29,17 @@ typedef struct {
     float point_y;
 } STEvent;
 
-typedef enum {
-    UIInterfaceOrientationPortrait           = 1,//UIDeviceOrientationPortrait,
-    UIInterfaceOrientationPortraitUpsideDown = 2,//UIDeviceOrientationPortraitUpsideDown,
-    UIInterfaceOrientationLandscapeLeft      = 4,//UIDeviceOrientationLandscapeRight,
-    UIInterfaceOrientationLandscapeRight     = 3,//UIDeviceOrientationLandscapeLeft
-} UIInterfaceOrientation;
+// typedef enum {
+//     UIInterfaceOrientationPortrait           = 1,//UIDeviceOrientationPortrait,
+//     UIInterfaceOrientationPortraitUpsideDown = 2,//UIDeviceOrientationPortraitUpsideDown,
+//     UIInterfaceOrientationLandscapeLeft      = 4,//UIDeviceOrientationLandscapeRight,
+//     UIInterfaceOrientationLandscapeRight     = 3,//UIDeviceOrientationLandscapeLeft
+// } UIInterfaceOrientation;
 
-@interface UIScreen
-+(id)mainScreen;
--(CGRect)bounds;
-@end
+// @interface UIScreen
+// +(id)mainScreen;
+// -(CGRect)bounds;
+// @end
 
 @interface STTouchA : NSObject
 {
@@ -231,6 +231,16 @@ static void _simulateTouchLoop()
     }else if (orientation == UIInterfaceOrientationLandscapeRight) {
         return CGPointMake(screen.width - point.y, point.x);
     }else return point;
+}
+
++(int)simulateButtonEvent:(int)index button:(int)button state:(int)state {
+    int r = simulate_button_event(index, button, state);
+    
+    if (r == 0) {
+        NSLog(@"ST Error: simulate_button_event:state: index:%d button:%d state:%d", index, button, state);
+        return 0;
+    }
+    return r;
 }
 
 +(int)simulateButton:(int)button state:(int)state
