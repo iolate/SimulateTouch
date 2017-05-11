@@ -29,17 +29,17 @@ typedef struct {
     float point_y;
 } STEvent;
 
-typedef enum {
-    UIInterfaceOrientationPortrait           = 1,//UIDeviceOrientationPortrait,
-    UIInterfaceOrientationPortraitUpsideDown = 2,//UIDeviceOrientationPortraitUpsideDown,
-    UIInterfaceOrientationLandscapeLeft      = 4,//UIDeviceOrientationLandscapeRight,
-    UIInterfaceOrientationLandscapeRight     = 3,//UIDeviceOrientationLandscapeLeft
-} UIInterfaceOrientation;
+// typedef enum {
+//     UIInterfaceOrientationPortrait           = 1,//UIDeviceOrientationPortrait,
+//     UIInterfaceOrientationPortraitUpsideDown = 2,//UIDeviceOrientationPortraitUpsideDown,
+//     UIInterfaceOrientationLandscapeLeft      = 4,//UIDeviceOrientationLandscapeRight,
+//     UIInterfaceOrientationLandscapeRight     = 3,//UIDeviceOrientationLandscapeLeft
+// } UIInterfaceOrientation;
 
-@interface UIScreen
-+(id)mainScreen;
--(CGRect)bounds;
-@end
+// @interface UIScreen
+// +(id)mainScreen;
+// -(CGRect)bounds;
+// @end
 
 @interface STTouchA : NSObject
 {
