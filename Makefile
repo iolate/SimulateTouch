@@ -1,6 +1,4 @@
-FW_DEVICE_IP=192.168.11.4
-
-include theos/makefiles/common.mk
+include ${THEOS}/makefiles/common.mk
 
 TWEAK_NAME = SimulateTouch
 SimulateTouch_FILES = SimulateTouch.mm
