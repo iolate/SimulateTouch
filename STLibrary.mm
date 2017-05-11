@@ -233,6 +233,16 @@ static void _simulateTouchLoop()
     }else return point;
 }
 
++(int)simulateButtonEvent:(int)index button:(int)button state:(int)state {
+    int r = simulate_button_event(index, button, state);
+    
+    if (r == 0) {
+        NSLog(@"ST Error: simulate_button_event:state: index:%d button:%d state:%d", index, button, state);
+        return 0;
+    }
+    return r;
+}
+
 +(int)simulateButton:(int)button state:(int)state
 {
     int r = simulate_button_event(0, button, state);
